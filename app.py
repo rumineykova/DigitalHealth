@@ -81,6 +81,26 @@ def parse_input(text):
 
     return result
 
+# Guideline URLs
+GUIDELINES = {
+    "NG201": ("NICE NG201 - Antenatal Care", "https://www.nice.org.uk/guidance/ng201"),
+    "NG133": ("NICE NG133 - Hypertension in Pregnancy", "https://www.nice.org.uk/guidance/ng133"),
+    "NG3": ("NICE NG3 - Diabetes in Pregnancy", "https://www.nice.org.uk/guidance/ng3"),
+    "NG137": ("NICE NG137 - Twin/Triplet Pregnancy", "https://www.nice.org.uk/guidance/ng137"),
+    "NG207": ("NICE NG207 - Inducing Labour", "https://www.nice.org.uk/guidance/ng207"),
+    "GTG57": ("RCOG GTG 57 - Reduced Fetal Movements", "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/reduced-fetal-movements-green-top-guideline-no-57/"),
+    "GTG20a": ("RCOG GTG 20a - ECV", "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/external-cephalic-version-and-reducing-the-incidence-of-term-breech-presentation-green-top-guideline-no-20a/"),
+    "GTG20b": ("RCOG GTG 20b - Breech Birth", "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/management-of-breech-presentation-green-top-guideline-no-20b/"),
+}
+
+def get_guideline_link(ref):
+    """Convert ref code to markdown link"""
+    code = ref.split()[0] if ref else ""
+    for key, (name, url) in GUIDELINES.items():
+        if key in code:
+            return f"[{ref}]({url})"
+    return ref
+
 def get_recommendations(weeks, risks, symptoms):
     """Generate compact recommendations"""
     recs = {
@@ -256,40 +276,57 @@ st.title("Clinical Decision Support")
 with st.sidebar:
     st.subheader("Patient")
     opts = ["None"] + [f"{k}: {v['name']} ({v['weeks']}w)" for k, v in PATIENTS.items()]
-    sel = st.selectbox("Select", opts, label_visibility="collapsed")
+
+    # Get current index for selectbox
+    current_idx = 0
+    if st.session_state.current_patient:
+        for i, opt in enumerate(opts):
+            if opt.startswith(st.session_state.current_patient):
+                current_idx = i
+                break
+
+    sel = st.selectbox("Select", opts, index=current_idx, label_visibility="collapsed")
 
     if sel != "None":
         pid = sel.split(":")[0]
         st.session_state.current_patient = pid
         p = PATIENTS[pid]
-        st.caption(f"**{p['name']}** | {p['age']}y | {p['parity']} | {p['weeks']}w")
+        st.success(f"**{p['name']}** | {p['age']}y | {p['parity']} | {p['weeks']}w")
         if p["risks"]:
             st.warning(" | ".join(p["risks"]))
         st.caption(f"Labs: Hb {p['labs']['Hb']}, BP {p['labs']['BP']}")
     else:
         st.session_state.current_patient = None
 
-# Quick buttons - single row
+# Quick buttons - single row (with patient auto-select)
 cols = st.columns(6)
 scenarios = [
-    ("Pre-eclampsia", "16 weeks with previous pre-eclampsia"),
-    ("GDM Risk", "28 weeks, BMI 35, need GTT?"),
-    ("RFM", "34 weeks reduced movements"),
-    ("Rh Neg", "Rh negative 28 weeks"),
-    ("Twins", "DCDA twins 20 weeks"),
-    ("Anaemia", "28 weeks Hb 92"),
+    ("Pre-eclampsia", "16 weeks with previous pre-eclampsia", "P005"),  # Emma Davis
+    ("GDM Risk", "12 weeks, BMI 38, previous GDM", "P006"),  # Lisa Martinez
+    ("RFM", "34 weeks reduced movements", "P009"),  # Amy Wilson
+    ("Twins", "DCDA twins 20 weeks, Rh negative", "P007"),  # Rachel Green
+    ("Anaemia", "28 weeks Hb 92", "P010"),  # Fatima Ahmed
+    ("Postdates", "41 weeks, discuss IOL", "P011"),  # Sophie Brown
 ]
-for i, (label, query) in enumerate(scenarios):
+for i, (label, q, patient_id) in enumerate(scenarios):
     if cols[i].button(label, use_container_width=True):
-        st.session_state.quick = query
+        st.session_state.quick = q
+        st.session_state.current_patient = patient_id
+        st.session_state.auto_analyze = True
+        st.rerun()
 
 # Input
 default = st.session_state.pop("quick", "")
 query = st.text_input("Enter clinical query:", value=default,
                        placeholder="e.g., 16 weeks with previous pre-eclampsia, what monitoring?")
 
-if st.button("Analyze", type="primary") and query:
-    parsed = parse_input(query)
+# Auto-analyze if triggered by quick button
+auto_analyze = st.session_state.pop("auto_analyze", False)
+analyze_clicked = st.button("Analyze", type="primary")
+
+if (analyze_clicked or auto_analyze) and (query or default):
+    actual_query = query if query else default
+    parsed = parse_input(actual_query)
 
     # Merge patient data
     patient_name = ""
@@ -303,7 +340,7 @@ if st.button("Analyze", type="primary") and query:
     recs = get_recommendations(parsed["weeks"], parsed["risks"], parsed["symptoms"])
 
     # Save history
-    st.session_state.history.append({"ts": datetime.now().isoformat(), "q": query, "risks": parsed["risks"]})
+    st.session_state.history.append({"ts": datetime.now().isoformat(), "q": actual_query, "risks": parsed["risks"]})
     save_json(HISTORY_FILE, st.session_state.history[-50:])
 
     st.divider()
@@ -313,19 +350,19 @@ if st.button("Analyze", type="primary") and query:
     # Alerts - always visible
     if recs["alerts"]:
         for alert, ref in recs["alerts"]:
-            st.error(f"⚠️ **{alert}** `{ref}`")
+            st.error(f"⚠️ **{alert}** {get_guideline_link(ref)}")
 
     # Actions - compact list with expand
     if recs["actions"]:
         st.markdown("### ✅ Actions")
         for action, timing, ref in recs["actions"]:
-            st.markdown(f"• **{action}** — _{timing}_ `{ref}`")
+            st.markdown(f"• **{action}** — _{timing}_ {get_guideline_link(ref)}")
 
     # Tests - compact
     if recs["tests"]:
         st.markdown("### 🧪 Tests")
         for test, freq, ref in recs["tests"]:
-            st.markdown(f"• **{test}** — _{freq}_ `{ref}`")
+            st.markdown(f"• **{test}** — _{freq}_ {get_guideline_link(ref)}")
 
     # Follow-up - one line
     if recs["followup"]:
@@ -341,14 +378,14 @@ if st.button("Analyze", type="primary") and query:
             for dec in recs["decisions"]:
                 st.markdown(f"**{dec['q']}**")
                 for cond, actions, ref in dec["opts"]:
-                    st.markdown(f"  **IF** {cond} **→** {', '.join(actions)} `{ref}`")
+                    st.markdown(f"  **IF** {cond} **→** {', '.join(actions)} {get_guideline_link(ref)}")
                 st.markdown("---")
 
     # Copy summary - collapsed
     with st.expander("📋 Copy Summary"):
         st.code(format_summary(recs, patient_name, parsed["weeks"]), language=None)
 
-    st.caption(f"Source: NICE Guidelines | [NG201](https://www.nice.org.uk/guidance/ng201)")
+    st.caption("Sources: [NG201 Antenatal](https://www.nice.org.uk/guidance/ng201) | [NG133 Hypertension](https://www.nice.org.uk/guidance/ng133) | [NG3 Diabetes](https://www.nice.org.uk/guidance/ng3) | [NG137 Twins](https://www.nice.org.uk/guidance/ng137)")
 
 # History - collapsed
 with st.expander("📜 History"):

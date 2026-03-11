@@ -1,5 +1,5 @@
 """
-Clinical Decision Support System - Compact View
+Clinical Decision Support System
 """
 
 import streamlit as st
@@ -7,10 +7,6 @@ import json
 import os
 from datetime import datetime
 import re
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from guidelines.antenatal_care import get_appointment_by_week, check_antenatal_red_flags
 
 st.set_page_config(page_title="Clinical Decision Support", page_icon="🏥", layout="wide")
 
@@ -29,374 +25,1037 @@ def save_json(fp, data):
 
 if "history" not in st.session_state:
     st.session_state.history = load_json(HISTORY_FILE, [])
-if "current_patient" not in st.session_state:
-    st.session_state.current_patient = None
+if "analyzed" not in st.session_state:
+    st.session_state.analyzed = False
+if "scenario_text" not in st.session_state:
+    st.session_state.scenario_text = ""
+if "patient_data" not in st.session_state:
+    st.session_state.patient_data = None
+if "guidelines" not in st.session_state:
+    st.session_state.guidelines = []
 
-# Compact patient database
-PATIENTS = {
-    "P005": {"name": "Emma Davis", "age": 32, "weeks": 16, "parity": "G2P1",
-             "risks": ["Previous pre-eclampsia"], "labs": {"Hb": 108, "BP": "125/80"}},
-    "P006": {"name": "Lisa Martinez", "age": 35, "weeks": 12, "parity": "G3P2",
-             "risks": ["BMI 38.5", "Previous GDM"], "labs": {"Hb": 125, "BP": "130/85"}},
-    "P007": {"name": "Rachel Green", "age": 30, "weeks": 20, "parity": "G1P0",
-             "risks": ["DCDA twins", "Rh negative"], "labs": {"Hb": 105, "BP": "115/70"}},
-    "P008": {"name": "Priya Patel", "age": 34, "weeks": 30, "parity": "G2P1",
-             "risks": ["GDM diagnosed"], "labs": {"Hb": 118, "BP": "122/78"}},
-    "P009": {"name": "Amy Wilson", "age": 27, "weeks": 34, "parity": "G1P0",
-             "risks": ["Reduced movements"], "labs": {"Hb": 112, "BP": "118/74"}},
-    "P010": {"name": "Fatima Ahmed", "age": 29, "weeks": 28, "parity": "G4P3",
-             "risks": ["Anaemia Hb 92"], "labs": {"Hb": 92, "BP": "110/65"}},
-    "P011": {"name": "Sophie Brown", "age": 31, "weeks": 41, "parity": "G2P1",
-             "risks": ["Postdates"], "labs": {"Hb": 120, "BP": "115/72"}},
-    "P012": {"name": "Hannah Clarke", "age": 33, "weeks": 36, "parity": "G1P0",
-             "risks": ["Breech"], "labs": {"Hb": 116, "BP": "112/68"}},
+# Demo use cases
+DEMO_USE_CASES = {
+    "Select a use case...": "",
+    "Use Case 1: Epilepsy + Lamotrigine": "24 year old with a history of epilepsy, last seizure 4 months ago, on lamotrigine, currently 16 weeks pregnant",
+    "Use Case 2: High BMI + Previous SGA": "40 year old, BMI of 35 with a history of Caesarean section at 34 weeks for small baby 3 years ago, currently 28 weeks pregnant",
+    "Use Case 3: Previous Preterm": "29 year old, previous preterm labour at 30 weeks",
+    "Use Case 4: High BMI + DVT": "42 year old, BMI of 45, Para 2 and previous history of DVT",
 }
 
-def parse_input(text):
-    text_lower = text.lower()
-    result = {"weeks": None, "risks": [], "symptoms": []}
-
-    # Extract weeks
-    m = re.search(r'(\d+)\s*weeks?', text_lower)
-    if m:
-        result["weeks"] = int(m.group(1))
-
-    # Extract risks
-    risk_map = {
-        "pre-eclampsia": "Previous pre-eclampsia", "preeclampsia": "Previous pre-eclampsia",
-        "gdm": "GDM risk", "gestational diabetes": "GDM risk", "bmi 3": "High BMI",
-        "twins": "Multiple pregnancy", "rh neg": "Rh negative",
-        "anaemia": "Anaemia", "anemia": "Anaemia", "hb 9": "Anaemia",
-        "reduced movement": "Reduced movements", "breech": "Breech",
-        "postdates": "Postdates", "41 week": "Postdates", "42 week": "Postdates"
-    }
-    for kw, risk in risk_map.items():
-        if kw in text_lower and risk not in result["risks"]:
-            result["risks"].append(risk)
-
-    # Symptoms
-    for s in ["headache", "visual", "bleeding", "pain", "swelling"]:
-        if s in text_lower:
-            result["symptoms"].append(s)
-
-    return result
-
-# Guideline URLs
-GUIDELINES = {
-    "NG201": ("NICE NG201 - Antenatal Care", "https://www.nice.org.uk/guidance/ng201"),
-    "NG133": ("NICE NG133 - Hypertension in Pregnancy", "https://www.nice.org.uk/guidance/ng133"),
-    "NG3": ("NICE NG3 - Diabetes in Pregnancy", "https://www.nice.org.uk/guidance/ng3"),
-    "NG137": ("NICE NG137 - Twin/Triplet Pregnancy", "https://www.nice.org.uk/guidance/ng137"),
-    "NG207": ("NICE NG207 - Inducing Labour", "https://www.nice.org.uk/guidance/ng207"),
-    "GTG57": ("RCOG GTG 57 - Reduced Fetal Movements", "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/reduced-fetal-movements-green-top-guideline-no-57/"),
-    "GTG20a": ("RCOG GTG 20a - ECV", "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/external-cephalic-version-and-reducing-the-incidence-of-term-breech-presentation-green-top-guideline-no-20a/"),
-    "GTG20b": ("RCOG GTG 20b - Breech Birth", "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/management-of-breech-presentation-green-top-guideline-no-20b/"),
+# Patient leaflets database
+PATIENT_LEAFLETS = {
+    "pre-eclampsia": [
+        {"title": "Pre-eclampsia: what you need to know", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng133/ifp/chapter/pre-eclampsia"},
+        {"title": "Pre-eclampsia patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/pre-eclampsia-patient-information-leaflet/"},
+        {"title": "High blood pressure in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "gestational_diabetes": [
+        {"title": "Gestational diabetes: what you need to know", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng3/ifp/chapter/gestational-diabetes"},
+        {"title": "Gestational diabetes patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/gestational-diabetes-patient-information-leaflet/"},
+        {"title": "Diabetes in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "anaemia": [
+        {"title": "Anaemia in pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/"},
+        {"title": "Iron supplements in pregnancy", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/keeping-well/vitamins-supplements-and-nutrition/"},
+        {"title": "Eating well in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "twins": [
+        {"title": "Multiple pregnancy: having more than one baby", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng137/ifp/chapter/about-this-information"},
+        {"title": "Multiple pregnancy patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/multiple-pregnancy-patient-information-leaflet/"},
+        {"title": "Twin pregnancy information", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "sga": [
+        {"title": "Small for gestational age baby", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/small-for-gestational-age-baby-patient-information-leaflet/"},
+        {"title": "Your baby's growth", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "cholestasis": [
+        {"title": "Obstetric cholestasis patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/obstetric-cholestasis-patient-information-leaflet/"},
+        {"title": "Itching in pregnancy (ICP)", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "thrombocytopenia": [
+        {"title": "Low platelet count in pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/"},
+        {"title": "Blood conditions in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "vte": [
+        {"title": "Reducing the risk of blood clots", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/reducing-the-risk-of-venous-thromboembolism-during-pregnancy-and-after-birth-patient-information-leaflet/"},
+        {"title": "Blood clots in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "epilepsy": [
+        {"title": "Epilepsy and pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/epilepsy-in-pregnancy-patient-information-leaflet/"},
+        {"title": "Epilepsy UK pregnancy guide", "source": "Epilepsy Action", "url": "https://www.epilepsy.org.uk/info/women/pregnancy"},
+    ],
+    "breech": [
+        {"title": "Turning a breech baby (ECV)", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/turning-a-breech-baby-in-the-womb-external-cephalic-version-patient-information-leaflet/"},
+        {"title": "Breech baby: your options", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+    ],
+    "reduced_movements": [
+        {"title": "Your baby's movements", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/your-babys-movements-in-pregnancy-patient-information-leaflet/"},
+        {"title": "Reduced fetal movements", "source": "Kicks Count", "url": "https://www.kickscount.org.uk/"},
+    ],
+    "general": [
+        {"title": "Antenatal care: your options", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng201/ifp/chapter/about-this-information"},
+        {"title": "Pregnancy and birth", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/"},
+        {"title": "Antenatal appointments", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/services/maternity/antenatal-care/"},
+    ],
 }
 
-def get_guideline_link(ref):
-    """Convert ref code to markdown link"""
+# Guideline URLs - National and Local
+# SharePoint base for local Hillingdon/THH Maternity Guidelines
+SHAREPOINT_BASE = "https://brunel365-my.sharepoint.com/my?id=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines%2F"
+SHAREPOINT_FOLDER = "https://brunel365-my.sharepoint.com/my?id=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines&viewid=7bd060e2%2Db6c6%2D472d%2D8f8f%2D563d8d555b08"
+
+GUIDELINE_URLS = {
+    # National Guidelines - NICE (public links)
+    "NG201": "https://www.nice.org.uk/guidance/ng201",  # Antenatal care
+    "NG133": "https://www.nice.org.uk/guidance/ng133",  # Hypertension in pregnancy
+    "NG3": "https://www.nice.org.uk/guidance/ng3",      # Diabetes in pregnancy
+    "NG137": "https://www.nice.org.uk/guidance/ng137",  # Twin and triplet pregnancy
+    "NG217": "https://www.nice.org.uk/guidance/ng217",  # Epilepsies in children, young people and adults
+    "NG247": "https://www.nice.org.uk/guidance/ng247",  # Maternal and child nutrition
+    "NG25": "https://www.nice.org.uk/guidance/ng25",    # Preterm labour and birth
+    # National Guidelines - RCOG Green-top (public links)
+    "GTG68": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/epilepsy-in-pregnancy-green-top-guideline-no-68/",
+    "GTG37a": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/reducing-the-risk-of-thrombosis-and-embolism-during-pregnancy-and-the-puerperium-green-top-guideline-no-37a/",
+    "GTG37b": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/thrombosis-and-embolism-during-pregnancy-and-the-puerperium-acute-management-green-top-guideline-no-37b/",
+    "GTG72": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/care-of-women-with-obesity-in-pregnancy-green-top-guideline-no-72/",
+    "GTG31": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/small-for-gestational-age-fetus-green-top-guideline-no-31/",
+    "GTG43": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/obstetric-cholestasis-green-top-guideline-no-43/",
+    # Local Guidelines (Hillingdon/THH) - Direct links from Antenatal Care Schedule
+    "THH-Epilepsy": SHAREPOINT_BASE + "202405211452040.Epilepsy%20in%20pregnancy%20V7.pdf",
+    "THH-FGR": SHAREPOINT_BASE + "202411210723400.FGR%20Guideline%202024%20Hillingdon%202024.pdf",
+    "THH-BMI": SHAREPOINT_FOLDER,  # "Raised Body Mass Index (BMI) in pregnancy guideline" - no specific PDF found
+    "THH-VBAC": SHAREPOINT_BASE + "202506241450060.Vaginal%20birth%20after%20csection%20VBAC%20V7.0.pdf",
+    "THH-VTE": SHAREPOINT_FOLDER,  # VTE Prophylaxis flowchart in Antenatal Care Schedule
+    "THH-PTB": SHAREPOINT_FOLDER,  # Preterm Birth Clinic Pathway
+    "THH-ANC": SHAREPOINT_BASE + "202512191144050.Maternal%20Antenatal%20screening%20tests%20Guidelines%20v5.1.pdf",
+    "THH-Anaemia": SHAREPOINT_BASE + "202511211517060.Anaemia%20and%20Ferinject%20Infusion%20in%20Pregnancy%20v3.1.pdf",
+    "THH-GDM": SHAREPOINT_BASE + "202512191131340.gestational%20diabetes%20guideline%20v4.1.pdf",
+    "THH-Hypertension": SHAREPOINT_BASE + "202601301510290.Antenatal%20Hypertension%20Pregnancy%20V5.1.pdf",
+    "THH-Thyroid": SHAREPOINT_BASE + "202504141031280.Thyroid%20guideline%20V3.0.pdf",
+    # Additional local guidelines from Antenatal Care Schedule
+    "THH-Antibodies": SHAREPOINT_BASE + "202502241020400.Antibodies%20in%20pregnancy%20V5.0.pdf",
+    "THH-SickleCell": SHAREPOINT_BASE + "202601231300520.Sickle%20Cell%20Disease%20and%20Pregnancy%20v5.0.pdf",
+    "THH-Syphilis": SHAREPOINT_BASE + "202212011531480.Management%20of%20Positive%20Syphilis%20Serology%20in%20Pregnancy%20v.4.0.pdf",
+    "THH-ChickenPox": SHAREPOINT_BASE + "202204111056350.Chicken%20pox%20in%20pregnancy.pdf",
+    "THH-Herpes": SHAREPOINT_BASE + "202411110820540.Genital%20warts%20in%20pregnancy%20V5.0.pdf",
+    "THH-LGA": SHAREPOINT_BASE + "202405211458230.Management%20of%20large%20for%20gestational%20age%20foetuses%20and%20macrosomia%20V2.0.pdf",
+    "THH-Ultrasound": SHAREPOINT_BASE + "202507081315310.Obstetric_ultrasound%20protocol%20V4.0.pdf",
+    "THH-MEWS": SHAREPOINT_BASE + "202506241703290.MEWS%20Early%20recognition%20of%20the%20severely%20ill%20pregnant%20woman%20V3.0.pdf",
+}
+
+def make_link(ref):
     code = ref.split()[0] if ref else ""
-    for key, (name, url) in GUIDELINES.items():
+    for key, url in GUIDELINE_URLS.items():
         if key in code:
             return f"[{ref}]({url})"
     return ref
 
-def get_recommendations(weeks, risks, symptoms):
-    """Generate compact recommendations"""
-    recs = {
-        "alerts": [],
-        "actions": [],
-        "tests": [],
-        "decisions": [],
-        "followup": None,
-        "info_needed": []
-    }
+def parse_scenario(text):
+    """Parse free text scenario into structured data"""
+    text_lower = text.lower()
+    data = {"age": None, "weeks": None, "parity": None, "bmi": None, "risks": [], "labs": {}, "leaflet_tags": []}
 
-    # RED FLAGS
-    if symptoms:
-        if "bleeding" in symptoms:
-            recs["alerts"].append(("Vaginal bleeding - urgent assessment", "NG201 1.1"))
-        if "headache" in symptoms or "visual" in symptoms:
-            recs["alerts"].append(("Possible pre-eclampsia - check BP urgently", "NG133 1.3"))
+    # Age
+    age_match = re.search(r'(\d+)\s*(?:year|yr|y/?o)', text_lower)
+    if age_match:
+        data["age"] = int(age_match.group(1))
 
-    # PRE-ECLAMPSIA PATHWAY
-    if any("pre-eclampsia" in r.lower() for r in risks):
-        recs["actions"].extend([
-            ("Start Aspirin 150mg nocte", "From 12w to 36w", "NG133 1.1.2"),
-            ("Consultant-led care", "Refer at booking", "NG201 1.2.5"),
-        ])
-        recs["tests"].extend([
-            ("BP monitoring", "2-4 weekly → weekly from 32w", "NG133 1.2"),
-            ("Urinalysis", "Each visit", "NG201 1.3"),
-            ("Growth scans", "28, 32, 36 weeks", "NG201 1.4"),
-        ])
-        recs["decisions"].append({
-            "q": "Previous pre-eclampsia severity?",
-            "opts": [
-                ("Early-onset (<34w)", ["Maternal medicine referral", "Uterine artery Doppler 20-24w", "Serial scans from 26w"], "NG133 1.1.3"),
-                ("Late-onset (>34w)", ["Shared care acceptable", "Growth scans 28/32/36w", "Extra BP monitoring from 24w"], "NG133 1.1.4"),
-                ("HELLP/Eclampsia", ["URGENT maternal medicine", "Consider thromboprophylaxis", "Intensive monitoring"], "NG133 1.1.5"),
-            ]
-        })
-        recs["info_needed"].append("Gestation at previous pre-eclampsia onset?")
-        recs["followup"] = ("2-4 weekly → weekly from 32w", "High-risk")
+    # Weeks
+    weeks_match = re.search(r'(\d+)\s*weeks?', text_lower)
+    if weeks_match:
+        data["weeks"] = int(weeks_match.group(1))
 
-    # GDM / HIGH BMI PATHWAY
-    if any("gdm" in r.lower() or "bmi" in r.lower() for r in risks):
-        recs["actions"].append(("Dietitian referral", "First trimester", "NG3 1.2"))
-        recs["tests"].append(("GTT 75g", "Booking if prev GDM; 24-28w if BMI≥30", "NG3 1.2.4"))
-        recs["decisions"].append({
-            "q": "GTT result?",
-            "opts": [
-                ("Normal", ["Routine care", "No repeat GTT needed"], "NG3 1.2"),
-                ("GDM diagnosed", ["Joint diabetes clinic", "SMBG 4x daily", "Targets: fasting <5.3, 1hr <7.8"], "NG3 1.4"),
-            ]
-        })
-        if any("bmi" in r.lower() for r in risks):
-            recs["actions"].append(("Anaesthetic review", "Third trimester", "NG201 1.5"))
-            recs["actions"].append(("VTE risk assessment", "Consider LMWH", "NG201 1.6"))
-        recs["followup"] = ("4-weekly; 1-2 weekly if GDM", "Metabolic risk")
+    # BMI
+    bmi_match = re.search(r'bmi\s*(?:of\s*)?(\d+(?:\.\d+)?)', text_lower)
+    if bmi_match:
+        data["bmi"] = float(bmi_match.group(1))
+        data["labs"]["BMI"] = data["bmi"]
+        if data["bmi"] >= 30:
+            data["risks"].append(f"BMI {data['bmi']}")
 
-    # RH NEGATIVE
-    if any("rh neg" in r.lower() for r in risks):
-        recs["actions"].append(("Anti-D 1500 IU", "At 28 weeks", "NG201 1.6.1"))
-        recs["tests"].append(("Antibody screen", "Booking + 28w", "NG201 1.2.3"))
-        recs["decisions"].append({
-            "q": "Sensitising event?",
-            "opts": [
-                ("<20 weeks", ["Anti-D 250 IU within 72hrs", "No Kleihauer"], "NG201 1.6.2"),
-                (">20 weeks", ["Anti-D 500 IU within 72hrs", "Kleihauer test", "Extra anti-D if positive"], "NG201 1.6.3"),
-            ]
-        })
+    # Parity
+    para_match = re.search(r'para\s*(\d+)|p(\d+)|g(\d+)p(\d+)', text_lower)
+    if para_match:
+        if para_match.group(1):
+            data["parity"] = f"P{para_match.group(1)}"
+        elif para_match.group(4):
+            data["parity"] = f"G{para_match.group(3)}P{para_match.group(4)}"
 
-    # TWINS
-    if any("twin" in r.lower() or "multiple" in r.lower() for r in risks):
-        recs["actions"].append(("Multiple pregnancy team referral", "By 14 weeks", "NG137 1.1"))
-        recs["decisions"].append({
-            "q": "Chorionicity?",
-            "opts": [
-                ("DCDA", ["Scans 4-weekly from 24w", "Deliver 37+0-37+6"], "NG137 1.3"),
-                ("MCDA", ["Scans 2-weekly from 16w", "TTTS surveillance", "Deliver 36+0-36+6"], "NG137 1.4"),
-                ("MCMA", ["Fetal medicine referral", "Consider admission 26-28w", "Deliver 32-34w"], "NG137 1.5"),
-            ]
-        })
-        recs["followup"] = ("Per chorionicity protocol", "Multiple pregnancy")
+    # Conditions with leaflet tags
+    conditions = [
+        ("epilepsy", "Epilepsy", "epilepsy"), ("lamotrigine", "On Lamotrigine", "epilepsy"),
+        ("dvt", "Previous VTE", "vte"), ("thrombosis", "Previous VTE", "vte"),
+        ("preterm", "Previous preterm", None),
+        ("sga", "Previous SGA", "sga"), ("small baby", "Previous SGA", "sga"), ("fgr", "Previous FGR", "sga"),
+        ("caesarean", "Previous Caesarean", None), ("c-section", "Previous Caesarean", None),
+        ("pre-eclampsia", "Previous pre-eclampsia", "pre-eclampsia"), ("preeclampsia", "Previous pre-eclampsia", "pre-eclampsia"),
+        ("cholestasis", "Obstetric Cholestasis", "cholestasis"), ("itching", "? Obstetric Cholestasis", "cholestasis"),
+        ("thrombocytopenia", "Thrombocytopenia", "thrombocytopenia"), ("low platelets", "Thrombocytopenia", "thrombocytopenia"),
+        ("anaemia", "Anaemia", "anaemia"), ("anemia", "Anaemia", "anaemia"),
+        ("twins", "Twins", "twins"), ("multiple", "Multiple pregnancy", "twins"),
+        ("breech", "Breech", "breech"), ("reduced movement", "Reduced movements", "reduced_movements"),
+        ("gdm", "GDM", "gestational_diabetes"), ("gestational diabetes", "GDM", "gestational_diabetes"),
+    ]
+    for keyword, risk, leaflet_tag in conditions:
+        if keyword in text_lower:
+            if risk not in data["risks"]:
+                data["risks"].append(risk)
+            if leaflet_tag and leaflet_tag not in data["leaflet_tags"]:
+                data["leaflet_tags"].append(leaflet_tag)
 
-    # ANAEMIA
-    if any("anaemia" in r.lower() or "anemia" in r.lower() for r in risks):
-        recs["tests"].append(("FBC + ferritin", "Now + 2-4w post-treatment", "NG201 1.7"))
-        recs["decisions"].append({
-            "q": "Hb level?",
-            "opts": [
-                ("100-109 (mild)", ["Oral iron BD", "Dietary advice", "Recheck 2-4w"], "NG201 1.7.1"),
-                ("70-99 (moderate)", ["Oral iron BD", "Consider IV iron if no response", "Recheck 2w"], "NG201 1.7.2"),
-                ("<70 (severe)", ["Urgent haematology", "IV iron/transfusion", "Daily monitoring"], "NG201 1.7.3"),
-            ]
-        })
+    return data
 
-    # REDUCED MOVEMENTS
-    if any("movement" in r.lower() for r in risks):
-        recs["alerts"].append(("Reduced fetal movements - same day assessment", "RCOG GTG57"))
-        recs["actions"].append(("CTG monitoring", "Minimum 20 mins", "GTG57 4"))
-        recs["decisions"].append({
-            "q": "CTG result?",
-            "opts": [
-                ("Normal", ["Reassure", "Return if no improvement 24hrs"], "GTG57 5.1"),
-                ("Suspicious", ["Senior review", "Ultrasound for liquor/growth"], "GTG57 5.2"),
-                ("Pathological", ["IMMEDIATE obstetric review", "Consider delivery"], "GTG57 5.3"),
-                ("Recurrent RFM", ["Growth scan <24hrs", "Increased surveillance"], "GTG57 6"),
+def get_applicable_guidelines(patient_data, risks_text):
+    """Get guidelines based on conditions - aligned with THH Antenatal Care Schedule"""
+    guidelines = []
+    combined = risks_text.lower()
+    labs = patient_data.get("labs", {})
+    weeks = patient_data.get("weeks") or 20  # Default to 20 if None
+    age = patient_data.get("age")
+
+    # Previous SGA/FGR (small baby) - THH FGR Guideline
+    if "previous sga" in combined or "small baby" in combined or "previous fgr" in combined:
+        guidelines.append({
+            "name": "Previous SGA/FGR",
+            "code": "THH-FGR",
+            "summary": "Risk of recurrence. Aspirin 150mg, uterine artery Dopplers, serial growth scans. IOL at 39/40 unless other concerns.",
+            "actions": [
+                {"text": "Aspirin 150mg from 12 weeks (if <20w)", "ref": "THH-FGR", "default": weeks <= 20},
+                {"text": "Assess risk factors for FGR (RCOG stratification)", "ref": "THH-FGR", "default": True}
+            ],
+            "tests": [{"text": "Uterine artery Doppler", "timing": "20-24 weeks", "ref": "THH-FGR"}],
+            "ultrasound": [
+                {"text": "Serial growth scans 4-weekly", "timing": "From 28 weeks till birth", "ref": "THH-FGR"}
+            ],
+            "followup": [
+                {"text": "Consultant-led care", "timing": "Ongoing", "ref": "THH-FGR"},
+                {"text": "Fetal Medicine referral if EFW <3rd centile", "timing": "If needed", "ref": "THH-FGR"}
+            ],
+            "clarify": [
+                "What was the birthweight and gestation of previous SGA baby?",
+                "Was there placental dysfunction (abruption, pre-eclampsia)?",
+                "Were uterine artery Dopplers abnormal previously?"
+            ],
+            "decisions": [
+                {"question": "EFW at anomaly scan?", "options": ["≥10th centile → serial scans from 32w", "<10th centile → FGR pathway"]}
+            ],
+            "plan": [
+                (12, "Start Aspirin 150mg if not already"),
+                (20, "Uterine artery Dopplers at anomaly scan"),
+                (28, "Growth scan"),
+                (32, "Growth scan"),
+                (36, "Growth scan"),
+                (39, "Plan IOL unless other concerns")
             ]
         })
 
-    # BREECH
-    if any("breech" in r.lower() for r in risks):
-        recs["actions"].append(("Confirm with ultrasound", "If not done", "NG201 1.8"))
-        recs["decisions"].append({
-            "q": "ECV decision?",
-            "opts": [
-                ("Accepts ECV", ["Book ECV 36-37w", "FBC + G&S", "Anti-D if Rh neg"], "GTG20a 3"),
-                ("Declines ECV", ["Discuss vaginal breech vs caesarean", "Consultant review"], "GTG20b 4"),
+    # Current SGA
+    if "current sga" in combined or "small for dates" in combined:
+        guidelines.append({
+            "name": "Current SGA/FGR",
+            "code": "THH-FGR",
+            "summary": "EFW/AC <10th centile. Follow FGR pathway with serial monitoring.",
+            "tests": [{"text": "Umbilical artery Doppler", "timing": "Serial monitoring", "ref": "THH-FGR"}],
+            "ultrasound": [{"text": "Growth + Dopplers", "timing": "2-4 weekly per pathway", "ref": "THH-FGR"}],
+            "followup": [{"text": "Fetal medicine referral if <3rd centile", "timing": "Urgent", "ref": "THH-FGR"}],
+            "plan": [(weeks, "FGR pathway assessment"), (weeks+2, "Repeat scan + Dopplers"), (39, "Consider IOL")]
+        })
+
+    # Anaemia - THH Anaemia and Ferinject guideline
+    if "anaemia" in combined or "anemia" in combined:
+        guidelines.append({
+            "name": "Anaemia in Pregnancy",
+            "code": "THH-ANC",
+            "summary": "1st trimester <110g/l, 2nd/3rd <105g/l. Oral iron first line, Ferinject if not tolerating.",
+            "actions": [
+                {"text": "Start oral iron (unless haemoglobinopathy - check ferritin first)", "ref": "THH-ANC", "default": True},
+                {"text": "Ferinject if not tolerating orally", "ref": "THH-ANC", "default": False},
+                {"text": "ANC referral if Hb<70g/l or symptomatic", "ref": "THH-ANC", "default": False}
+            ],
+            "tests": [
+                {"text": "Booking, 28- and 34-weeks bloods", "timing": "As scheduled", "ref": "THH-ANC"},
+                {"text": "Serum ferritin and haematinics if indicated", "timing": "Now", "ref": "THH-ANC"}
+            ],
+            "ultrasound": [{"text": "Scans if Hb<80g/l", "timing": "4-weekly till birth", "ref": "THH-ANC"}],
+            "plan": [(weeks+2, "Repeat FBC"), (weeks+4, "Review response")]
+        })
+
+    # Pre-eclampsia Risk - THH Antenatal Hypertension guideline
+    if "pre-eclampsia" in combined or "preeclampsia" in combined or "previous pet" in combined:
+        guidelines.append({
+            "name": "Previous Pre-eclampsia",
+            "code": "THH-ANC",
+            "summary": "Aspirin 150mg from 12w, digital BP monitoring, uterine artery Dopplers, individualised care.",
+            "actions": [
+                {"text": "Aspirin 150mg from 12 weeks", "ref": "NG133", "default": weeks <= 36},
+                {"text": "Digital BP should be used at all times", "ref": "THH-ANC", "default": True}
+            ],
+            "tests": [
+                {"text": "BP and urine each visit (2-4 weekly intervals)", "ref": "THH-ANC"},
+                {"text": "Booking bloods incl FBC and U&E – repeat 28 and 34 weeks", "ref": "THH-ANC"}
+            ],
+            "ultrasound": [
+                {"text": "Anomaly + uterine artery Doppler", "timing": "20 weeks", "ref": "THH-ANC"},
+                {"text": "Serial growth scans", "timing": "From 28-32w depending on UA Doppler", "ref": "THH-ANC"}
+            ],
+            "plan": [(20, "Anomaly + UA Doppler"), (28, "Growth scan if abnormal UA"), (32, "Growth scan"), (36, "Growth scan")]
+        })
+
+    # Obstetric Cholestasis
+    if "cholestasis" in combined:
+        guidelines.append({
+            "name": "Obstetric Cholestasis",
+            "code": "GTG43",
+            "summary": "Bile acids monitoring, ursodeoxycholic acid, delivery planning.",
+            "actions": [
+                {"text": "Start Ursodeoxycholic acid", "ref": "GTG43", "default": True},
+                {"text": "Vitamin K if prolonged PT", "ref": "GTG43", "default": False}
+            ],
+            "tests": [
+                {"text": "Bile acids", "timing": "Weekly", "ref": "GTG43"},
+                {"text": "LFTs", "timing": "Weekly", "ref": "GTG43"}
+            ],
+            "followup": [{"text": "Consultant-led care", "timing": "Ongoing", "ref": "GTG43"}],
+            "plan": [(weeks, "Weekly bile acids + LFTs"), (37, "Consider delivery if bile acids >100")]
+        })
+
+    # Twins - THH Twin pregnancy guidelines
+    if "twins" in combined or "multiple" in combined:
+        guidelines.append({
+            "name": "Multiple Pregnancy",
+            "code": "THH-ANC",
+            "summary": "Specialist team. DCDA: 4-weekly from 24w, deliver 37w. MCDA: 2-weekly from 16w, deliver 36w.",
+            "actions": [
+                {"text": "Folic acid 5mg throughout pregnancy", "ref": "THH-ANC", "default": True},
+                {"text": "Consider Vitamin D", "ref": "THH-ANC", "default": True},
+                {"text": "Aspirin if another risk factor present", "ref": "THH-ANC", "default": False}
+            ],
+            "tests": [
+                {"text": "BP and urine at 20, 24, 28w then 2-weekly", "timing": "As scheduled", "ref": "THH-ANC"},
+                {"text": "FBC at 24, 28 and 34 weeks", "timing": "As scheduled", "ref": "THH-ANC"}
+            ],
+            "ultrasound": [
+                {"text": "Dating scan incl chorionicity, NT", "timing": "11-14 weeks", "ref": "NG137"},
+                {"text": "DCDA: 4-weekly growth from 24w", "timing": "Deliver 37w", "ref": "THH-ANC"},
+                {"text": "MCDA: 2-weekly from 16w (TTTS check)", "timing": "Deliver 36w", "ref": "THH-ANC"}
+            ],
+            "followup": [
+                {"text": "Signpost to TAMBA and MBF websites", "timing": "At booking", "ref": "THH-ANC"},
+                {"text": "Infant feeding and anaesthetist referral", "timing": "28 weeks", "ref": "THH-ANC"}
+            ],
+            "plan": [(16, "FMU referral if MCDA"), (24, "Start regular growth scans"), (28, "Anaesthetic/feeding referral"), (34, "Mode of birth discussion")]
+        })
+
+    # Thrombocytopenia - THH Introduction guidelines
+    if "thrombocytopenia" in combined or "low platelets" in combined:
+        guidelines.append({
+            "name": "Thrombocytopenia",
+            "code": "THH-ANC",
+            "summary": "ITP: refer to obstetric medicine. Gestational: refer if platelets <80. No scans indicated.",
+            "actions": [{"text": "Refer to obstetric medicine at booking (if ITP)", "ref": "THH-ANC", "default": True}],
+            "tests": [
+                {"text": "FBC, blood film, reticulocyte count", "timing": "Now", "ref": "THH-ANC"},
+                {"text": "LFT, TFT, DAT, APS ab, ANA", "timing": "If platelets <80", "ref": "THH-ANC"},
+                {"text": "HIV, HepB, HepC, H. pylori", "timing": "If platelets <80", "ref": "THH-ANC"},
+                {"text": "FBC every 2 weeks from 34w if <100", "timing": "From 34 weeks", "ref": "THH-ANC"}
+            ],
+            "followup": [
+                {"text": "Obstetric medicine review", "timing": "If platelets <80", "ref": "THH-ANC"}
+            ],
+            "plan": [(34, "FBC every 2 weeks if platelets <100")]
+        })
+
+    # VTE / Previous DVT - THH VTE Prophylaxis flowchart
+    if "dvt" in combined or "vte" in combined or "thrombosis" in combined:
+        guidelines.append({
+            "name": "Previous VTE - HIGH RISK",
+            "code": "THH-VTE",
+            "summary": "Any previous VTE = HIGH RISK. Requires antenatal LMWH prophylaxis. Refer to thrombosis expert.",
+            "actions": [
+                {"text": "Start antenatal prophylaxis with LMWH", "ref": "THH-VTE", "default": True},
+                {"text": "At least 6 weeks postnatal prophylactic LMWH", "ref": "THH-VTE", "default": True}
+            ],
+            "tests": [{"text": "Thrombophilia screen (if not previously done)", "timing": "At booking", "ref": "GTG37a"}],
+            "followup": [
+                {"text": "Thrombosis in pregnancy expert/team referral", "timing": "At booking", "ref": "THH-VTE"},
+                {"text": "Haematology review", "timing": "First trimester", "ref": "THH-VTE"}
+            ],
+            "clarify": [
+                "Was the previous VTE provoked or unprovoked?",
+                "Was it related to pregnancy, surgery, or immobility?",
+                "Has thrombophilia screening been done? Results?",
+                "Is patient currently on anticoagulation?"
+            ],
+            "decisions": [
+                {"question": "VTE type?", "options": ["Unprovoked/recurrent → HIGH RISK, LMWH throughout", "Single provoked (non-pregnancy) → consider intermediate risk"]}
+            ],
+            "plan": [
+                (weeks, "Start/continue LMWH prophylaxis"),
+                (36, "Delivery planning: LMWH timing, regional anaesthesia"),
+                (40, "Postnatal: 6 weeks LMWH prophylaxis")
             ]
         })
 
-    # POSTDATES
-    if any("postdates" in r.lower() for r in risks) or (weeks and weeks >= 41):
-        recs["actions"].append(("Offer membrane sweep", "40w (nullip) / 41w (all)", "NG207 1.2"))
-        recs["decisions"].append({
-            "q": "IOL preference?",
-            "opts": [
-                ("Accepts IOL", ["Book IOL 41+0 to 42+0", "Explain process"], "NG207 1.3"),
-                ("Declines IOL", ["Twice-weekly CTG+AFI from 42w", "Daily movement monitoring"], "NG207 1.4"),
+    # Epilepsy - THH Epilepsy in pregnancy V7
+    if "epilepsy" in combined or "lamotrigine" in combined or "seizure" in combined:
+        guidelines.append({
+            "name": "Epilepsy in Pregnancy",
+            "code": "THH-Epilepsy",
+            "summary": "Folic acid 5mg preconception. Refer to Obs Med. Detailed anomaly + ECHO. 4-weekly growth from 28w.",
+            "actions": [
+                {"text": "Folic acid 5mg daily (preconception)", "ref": "THH-Epilepsy", "default": True},
+                {"text": "Register on UK Epilepsy and Pregnancy Register", "ref": "THH-Epilepsy", "default": False}
+            ],
+            "tests": [
+                {"text": "Drug levels only if seizure frequency increases or dose change", "timing": "As needed", "ref": "THH-Epilepsy"}
+            ],
+            "ultrasound": [
+                {"text": "Detailed anomaly scan + ECHO", "timing": "20 weeks", "ref": "THH-Epilepsy"},
+                {"text": "4-weekly growth scans (sonographer-led FMU)", "timing": "From 28 weeks", "ref": "THH-Epilepsy"}
+            ],
+            "followup": [
+                {"text": "Obs Med team referral", "timing": "At booking", "ref": "THH-Epilepsy"},
+                {"text": "Joint Obstetric-Neurology care", "timing": "Ongoing", "ref": "THH-Epilepsy"}
+            ],
+            "clarify": [
+                "What AED (anti-epileptic drug) is patient on? Dose?",
+                "When was the last seizure?",
+                "What type of seizures (focal, generalised, tonic-clonic)?",
+                "Has patient been taking folic acid 5mg preconception?",
+                "Any previous pregnancies on AEDs? Outcomes?"
+            ],
+            "decisions": [
+                {"question": "Seizure frequency increasing?", "options": ["Yes → check drug levels, neurology review", "No → continue current dose, no levels needed"]},
+                {"question": "On enzyme-inducing AED?", "options": ["Yes → Vitamin K 10mg daily from 36w", "No → routine Vitamin K advice"]}
+            ],
+            "plan": [
+                (16, "Obs ANC: review seizure control, SUDEP risk"),
+                (20, "Detailed anomaly scan + fetal ECHO"),
+                (28, "Growth scan; Obs +/- Neuro review"),
+                (32, "Obs ANC: Vitamin K discussion"),
+                (36, "Birth planning, postnatal contraception")
             ]
         })
 
-    # Default follow-up
-    if not recs["followup"] and weeks:
-        if weeks < 28:
-            recs["followup"] = ("4 weeks", "Routine")
-        elif weeks < 36:
-            recs["followup"] = ("2-3 weeks", "Routine")
-        else:
-            recs["followup"] = ("Weekly", "Late pregnancy")
+    # High BMI - THH Raised BMI guideline
+    if labs.get("BMI") and labs["BMI"] >= 35:
+        bmi = labs["BMI"]
+        if bmi >= 40:
+            guidelines.append({
+                "name": "BMI ≥40 (Class III Obesity)",
+                "code": "THH-BMI",
+                "summary": f"BMI {bmi}. HIGH VTE RISK. LMWH from first trimester. Anaesthetic review at 32w. OGTT 24-28w.",
+                "actions": [
+                    {"text": "Folic acid 5mg preconception", "ref": "THH-BMI", "default": True},
+                    {"text": "VTE and FGR risk assessment at booking", "ref": "THH-BMI", "default": True},
+                    {"text": "Vitamin D 25mcg or 1000IU", "ref": "THH-BMI", "default": True},
+                    {"text": "Start LMWH (4+ risk factors = from first trimester)", "ref": "THH-VTE", "default": True},
+                    {"text": "Assess if equipment can adjust to patient", "ref": "THH-BMI", "default": True}
+                ],
+                "tests": [
+                    {"text": "OGTT 75g", "timing": "24-28 weeks", "ref": "NG3"},
+                    {"text": "Appropriate cuff size for BP", "timing": "All visits", "ref": "THH-BMI"}
+                ],
+                "ultrasound": [{"text": "4-weekly growth scans", "timing": "From 32 weeks till birth", "ref": "THH-BMI"}],
+                "followup": [
+                    {"text": "Consultant-led care", "timing": "Ongoing", "ref": "THH-BMI"},
+                    {"text": "Dietician referral", "timing": "First trimester", "ref": "THH-BMI"},
+                    {"text": "Anaesthetic review", "timing": "32 weeks", "ref": "THH-BMI"}
+                ],
+                "clarify": [
+                    "Any other VTE risk factors (previous VTE, thrombophilia, immobility)?",
+                    "Previous gestational diabetes?",
+                    "Any difficulty with previous anaesthesia?",
+                    "Any co-morbidities (OSA, hypertension, cardiac)?"
+                ],
+                "decisions": [
+                    {"question": "Total VTE risk factors?", "options": ["4+ factors → LMWH from 1st trimester", "3 factors → LMWH from 28 weeks"]},
+                    {"question": "OGTT result?", "options": ["Normal → routine care", "GDM → diabetes pathway"]}
+                ],
+                "plan": [
+                    (16, "Obs ANC: counselling, dietician referral"),
+                    (24, "OGTT 75g"),
+                    (28, "Start LMWH if not already; assess VTE score"),
+                    (32, "Anaesthetic counselling; growth scan"),
+                    (36, "Growth scan; discuss postpartum VTE prophylaxis")
+                ]
+            })
+        else:  # BMI 35-39.9
+            guidelines.append({
+                "name": "BMI 35-39.9 (Class II Obesity)",
+                "code": "THH-BMI",
+                "summary": f"BMI {bmi}. VTE/FGR risk assessment. OGTT 24-28w. Consider LMWH from 28w.",
+                "actions": [
+                    {"text": "Folic acid 5mg preconception", "ref": "THH-BMI", "default": True},
+                    {"text": "VTE and FGR risk assessment at booking", "ref": "THH-BMI", "default": True},
+                    {"text": "Vitamin D 25mcg or 1000IU", "ref": "THH-BMI", "default": True},
+                    {"text": "Consider LMWH from 28w (+/- based on VTE score)", "ref": "THH-BMI", "default": False}
+                ],
+                "tests": [{"text": "OGTT 75g", "timing": "24-28 weeks", "ref": "NG3"}],
+                "ultrasound": [{"text": "4-weekly growth scans", "timing": "From 32 weeks till birth", "ref": "THH-BMI"}],
+                "followup": [
+                    {"text": "Consultant-led care", "timing": "Ongoing", "ref": "THH-BMI"},
+                    {"text": "Dietician referral (optional)", "timing": "First trimester", "ref": "THH-BMI"}
+                ],
+                "clarify": [
+                    "Any other VTE risk factors?",
+                    "Previous gestational diabetes?",
+                    "Family history of diabetes?"
+                ],
+                "decisions": [
+                    {"question": "VTE risk score ≥3?", "options": ["Yes → consider LMWH from 28w", "No → reassess postnatally"]}
+                ],
+                "plan": [
+                    (16, "Obs ANC: counselling, consider dietician"),
+                    (24, "OGTT 75g"),
+                    (28, "Assess VTE score; consider LMWH"),
+                    (32, "Obs ANC; growth scan"),
+                    (36, "Obs ANC; growth scan; discuss postpartum VTE")
+                ]
+            })
+    elif labs.get("BMI") and labs["BMI"] >= 30:
+        guidelines.append({
+            "name": "BMI 30-34.9 (Class I Obesity)",
+            "code": "THH-BMI",
+            "summary": f"BMI {labs['BMI']}. GDM screening required.",
+            "tests": [{"text": "OGTT 75g", "timing": "24-28 weeks", "ref": "NG3"}],
+            "plan": [(24, "OGTT")]
+        })
 
-    return recs
+    # GDM - THH gestational diabetes guideline
+    if "gdm" in combined or "gestational diabetes" in combined:
+        guidelines.append({
+            "name": "Gestational Diabetes",
+            "code": "THH-ANC",
+            "summary": "GDM on diet: remote review 2-3 weekly, IOL 40+0-40+6. On treatment: 1-2 weekly review, IOL 39-40+0.",
+            "actions": [
+                {"text": "Joint diabetes clinic referral", "ref": "NG3", "default": True},
+                {"text": "Home glucose monitoring", "ref": "NG3", "default": True}
+            ],
+            "tests": [
+                {"text": "HbA1c if diagnosis in 1st/2nd trimester with RBS≥7", "timing": "At diagnosis", "ref": "THH-ANC"},
+                {"text": "Home glucose monitoring 4x daily", "timing": "Ongoing", "ref": "NG3"}
+            ],
+            "ultrasound": [{"text": "4-weekly growth scans", "timing": "From 28 weeks (diet) or 28 weeks (treatment)", "ref": "THH-ANC"}],
+            "followup": [
+                {"text": "31-33w birth DSM preparation class", "timing": "31-33 weeks", "ref": "THH-ANC"},
+                {"text": "36w Dr MOB and IOL discussion", "timing": "36 weeks", "ref": "THH-ANC"}
+            ],
+            "plan": [(28, "Growth scan"), (32, "Growth scan"), (36, "Growth scan + MOB discussion"), (39, "IOL if on treatment"), (40, "IOL if diet-controlled")]
+        })
 
-def format_summary(recs, patient="", weeks=None):
-    """Compact copy-paste summary"""
-    lines = [f"SUMMARY | {datetime.now().strftime('%d/%m/%Y %H:%M')}"]
-    if patient:
-        lines.append(f"Patient: {patient}" + (f" | {weeks}w" if weeks else ""))
+    # Previous Caesarean - THH VBAC guideline
+    if "caesarean" in combined or "c-section" in combined or "c section" in combined:
+        guidelines.append({
+            "name": "Previous Caesarean Section",
+            "code": "THH-VBAC",
+            "summary": "RCOG leaflet for VBAC vs CS. Birth options clinic at 16w. Mode of birth discussion at 36w.",
+            "actions": [
+                {"text": "Provide RCOG VBAC leaflet at booking/16w", "ref": "THH-VBAC", "default": True}
+            ],
+            "followup": [
+                {"text": "Birth options clinic with Senior MW (if 1 uncomplicated CS)", "timing": "16 weeks", "ref": "THH-VBAC"},
+                {"text": "16w ANC with obstetrician (if 2+ uterine surgeries or complex)", "timing": "16 weeks", "ref": "THH-VBAC"},
+                {"text": "36w Obstetrician ANC - Mode of Birth", "timing": "36 weeks", "ref": "THH-VBAC"}
+            ],
+            "plan": [(16, "Birth options clinic / Obs ANC"), (36, "Mode of Birth discussion")]
+        })
 
-    if recs["alerts"]:
-        lines.append("\n⚠️ ALERTS: " + "; ".join([a[0] for a in recs["alerts"]]))
+    # Advanced Maternal Age >40
+    if age and age >= 40:
+        guidelines.append({
+            "name": "Advanced Maternal Age (>40)",
+            "code": "THH-ANC",
+            "summary": "Aspirin risk assessment at 12w. Obs ANC at 16, 32, 36w. Offer IOL from 39w.",
+            "actions": [
+                {"text": "Aspirin risk assessment at 12 weeks", "ref": "THH-ANC", "default": True}
+            ],
+            "tests": [{"text": "28w one-off SFH measurement", "timing": "28 weeks", "ref": "THH-ANC"}],
+            "ultrasound": [{"text": "4-weekly growth scans", "timing": "From 32 weeks till birth", "ref": "THH-ANC"}],
+            "followup": [
+                {"text": "16w Obstetrician ANC", "timing": "16 weeks", "ref": "THH-ANC"},
+                {"text": "32 & 36w Obstetrician ANC", "timing": "32, 36 weeks", "ref": "THH-ANC"},
+                {"text": "Offer IOL from 39 weeks", "timing": "39 weeks", "ref": "THH-ANC"}
+            ],
+            "plan": [(12, "Aspirin assessment"), (16, "Obs ANC"), (28, "SFH check"), (32, "Obs ANC + growth scan"), (36, "Obs ANC + growth scan"), (39, "Offer IOL")]
+        })
 
-    if recs["actions"]:
-        lines.append("\n✅ ACTIONS:")
-        for a in recs["actions"]:
-            lines.append(f"  □ {a[0]} ({a[1]}) [{a[2]}]")
+    # Previous Preterm Labour - Preterm birth clinic pathway
+    if "preterm" in combined or "premature" in combined:
+        guidelines.append({
+            "name": "Previous Preterm Labour",
+            "code": "THH-PTB",
+            "summary": "Refer to Preterm Birth Clinic. Cervical length scans. Consider progesterone if cervix <25mm.",
+            "actions": [
+                {"text": "Progesterone PV 400mg OD if cervical length <25mm (till 34w)", "ref": "THH-ANC", "default": False}
+            ],
+            "ultrasound": [
+                {"text": "Cervical length scans", "timing": "16-24 weeks", "ref": "THH-PTB"},
+                {"text": "Growth scans 4-weekly", "timing": "From 28 weeks", "ref": "THH-ANC"}
+            ],
+            "followup": [
+                {"text": "Preterm Birth (PTB) Clinic referral", "timing": "First trimester", "ref": "THH-PTB"},
+                {"text": "Consider Fetal Medicine referral if cerclage needed", "timing": "If cervix <25mm", "ref": "THH-PTB"}
+            ],
+            "clarify": [
+                "At what gestation was the previous preterm birth?",
+                "Was it spontaneous labour or indicated (e.g., pre-eclampsia, FGR)?",
+                "Was there PPROM?",
+                "Any cervical surgery (LLETZ, cone biopsy)?",
+                "Any uterine anomaly?"
+            ],
+            "decisions": [
+                {"question": "Previous spontaneous PTB <34w?", "options": ["Yes → cervical length scans from 16w", "No (indicated PTB) → address underlying cause"]},
+                {"question": "Cervical length <25mm?", "options": ["Yes → start progesterone, consider cerclage referral", "No → continue surveillance"]}
+            ],
+            "plan": [
+                (12, "PTB Clinic referral"),
+                (16, "Cervical length scan"),
+                (20, "Cervical length scan"),
+                (24, "Cervical length scan; if <25mm start progesterone"),
+                (28, "Growth scan"),
+                (32, "Growth scan"),
+                (36, "Growth scan; delivery planning")
+            ]
+        })
 
-    if recs["tests"]:
-        lines.append("\n🧪 TESTS:")
-        for t in recs["tests"]:
-            lines.append(f"  □ {t[0]} - {t[1]} [{t[2]}]")
+    return guidelines
 
-    if recs["followup"]:
-        lines.append(f"\n📅 FOLLOW-UP: {recs['followup'][0]} ({recs['followup'][1]})")
+def get_leaflets_for_patient(leaflet_tags):
+    """Get relevant patient leaflets based on conditions"""
+    leaflets = []
+    for tag in leaflet_tags:
+        if tag in PATIENT_LEAFLETS:
+            leaflets.extend(PATIENT_LEAFLETS[tag])
+    # Always add general leaflets
+    leaflets.extend(PATIENT_LEAFLETS["general"])
+    # Remove duplicates
+    seen = set()
+    unique = []
+    for l in leaflets:
+        if l["title"] not in seen:
+            seen.add(l["title"])
+            unique.append(l)
+    return unique
 
-    if recs["info_needed"]:
-        lines.append("\n❓ CLARIFY: " + "; ".join(recs["info_needed"]))
-
-    return "\n".join(lines)
-
-# === UI ===
-
-st.title("Clinical Decision Support")
-
-# Sidebar - compact
+# ================================================================
+# SIDEBAR - Demo Use Cases
+# ================================================================
 with st.sidebar:
-    st.subheader("Patient")
-    opts = ["None"] + [f"{k}: {v['name']} ({v['weeks']}w)" for k, v in PATIENTS.items()]
+    st.title("🏥 Demo")
 
-    # Get current index for selectbox
-    current_idx = 0
-    if st.session_state.current_patient:
-        for i, opt in enumerate(opts):
-            if opt.startswith(st.session_state.current_patient):
-                current_idx = i
-                break
+    # Demo use case dropdown - prominent at top
+    st.markdown("**Select a Use Case**")
+    selected_case = st.selectbox(
+        "Use Case",
+        list(DEMO_USE_CASES.keys()),
+        label_visibility="collapsed"
+    )
 
-    sel = st.selectbox("Select", opts, index=current_idx, label_visibility="collapsed")
+    # Show selected scenario preview
+    if selected_case != "Select a use case...":
+        st.caption(f"*{DEMO_USE_CASES[selected_case]}*")
 
-    if sel != "None":
-        pid = sel.split(":")[0]
-        st.session_state.current_patient = pid
-        p = PATIENTS[pid]
-        st.success(f"**{p['name']}** | {p['age']}y | {p['parity']} | {p['weeks']}w")
-        if p["risks"]:
-            st.warning(" | ".join(p["risks"]))
-        st.caption(f"Labs: Hb {p['labs']['Hb']}, BP {p['labs']['BP']}")
-    else:
-        st.session_state.current_patient = None
+    # Analyze button - immediately visible
+    col1, col2 = st.columns(2)
+    if col1.button("**Analyze**", type="primary", use_container_width=True):
+        if selected_case != "Select a use case...":
+            final_scenario = DEMO_USE_CASES[selected_case]
+            st.session_state.scenario_text = final_scenario
+            st.session_state.patient_data = parse_scenario(final_scenario)
+            st.session_state.guidelines = get_applicable_guidelines(
+                st.session_state.patient_data,
+                final_scenario
+            )
+            st.session_state.analyzed = True
+            st.session_state.history.append({"ts": datetime.now().isoformat(), "q": final_scenario[:50]})
+            save_json(HISTORY_FILE, st.session_state.history[-50:])
 
-# Quick buttons - single row (with patient auto-select)
-cols = st.columns(6)
-scenarios = [
-    ("Pre-eclampsia", "16 weeks with previous pre-eclampsia", "P005"),  # Emma Davis
-    ("GDM Risk", "12 weeks, BMI 38, previous GDM", "P006"),  # Lisa Martinez
-    ("RFM", "34 weeks reduced movements", "P009"),  # Amy Wilson
-    ("Twins", "DCDA twins 20 weeks, Rh negative", "P007"),  # Rachel Green
-    ("Anaemia", "28 weeks Hb 92", "P010"),  # Fatima Ahmed
-    ("Postdates", "41 weeks, discuss IOL", "P011"),  # Sophie Brown
-]
-for i, (label, q, patient_id) in enumerate(scenarios):
-    if cols[i].button(label, use_container_width=True):
-        st.session_state.quick = q
-        st.session_state.current_patient = patient_id
-        st.session_state.auto_analyze = True
+    if col2.button("Clear", use_container_width=True):
+        st.session_state.analyzed = False
+        st.session_state.scenario_text = ""
+        st.session_state.patient_data = None
+        st.session_state.guidelines = []
         st.rerun()
-
-# Input
-default = st.session_state.pop("quick", "")
-query = st.text_input("Enter clinical query:", value=default,
-                       placeholder="e.g., 16 weeks with previous pre-eclampsia, what monitoring?")
-
-# Auto-analyze if triggered by quick button
-auto_analyze = st.session_state.pop("auto_analyze", False)
-analyze_clicked = st.button("Analyze", type="primary")
-
-if (analyze_clicked or auto_analyze) and (query or default):
-    actual_query = query if query else default
-    parsed = parse_input(actual_query)
-
-    # Merge patient data
-    patient_name = ""
-    if st.session_state.current_patient:
-        p = PATIENTS[st.session_state.current_patient]
-        patient_name = p["name"]
-        if not parsed["weeks"]:
-            parsed["weeks"] = p["weeks"]
-        parsed["risks"].extend([r for r in p["risks"] if r not in parsed["risks"]])
-
-    recs = get_recommendations(parsed["weeks"], parsed["risks"], parsed["symptoms"])
-
-    # Save history
-    st.session_state.history.append({"ts": datetime.now().isoformat(), "q": actual_query, "risks": parsed["risks"]})
-    save_json(HISTORY_FILE, st.session_state.history[-50:])
 
     st.divider()
 
-    # === COMPACT OUTPUT ===
+    # Optional: Custom scenario (collapsed by default)
+    with st.expander("⚙️ Custom Scenario", expanded=False):
+        # Gestation quick select
+        st.markdown("**Gestation**")
+        g_cols = st.columns(4)
+        selected_weeks = None
+        for col, wks in zip(g_cols, [16, 24, 28, 36]):
+            if col.button(f"{wks}w", key=f"w{wks}", use_container_width=True):
+                selected_weeks = wks
 
-    # Alerts - always visible
-    if recs["alerts"]:
-        for alert, ref in recs["alerts"]:
-            st.error(f"⚠️ **{alert}** {get_guideline_link(ref)}")
+        # Conditions
+        st.markdown("**Conditions**")
+        conditions = ["Previous SGA", "Anaemia", "Previous Pre-eclampsia", "Twins"]
+        selected_conditions = []
+        cols = st.columns(2)
+        for i, cond in enumerate(conditions):
+            if cols[i % 2].checkbox(cond, key=f"cond_{cond}"):
+                selected_conditions.append(cond)
 
-    # Actions - compact list with expand
-    if recs["actions"]:
-        st.markdown("### ✅ Actions")
-        for action, timing, ref in recs["actions"]:
-            st.markdown(f"• **{action}** — _{timing}_ {get_guideline_link(ref)}")
+        # Text + voice input at bottom
+        st.markdown("**Describe scenario**")
+        input_cols = st.columns([0.85, 0.15])
+        free_text = input_cols[0].text_area(
+            "Scenario",
+            height=80,
+            placeholder="e.g., 32yo G2P1, previous C-section, BMI 35, on aspirin...",
+            label_visibility="collapsed"
+        )
+        with input_cols[1]:
+            audio = st.audio_input("🎤", label_visibility="collapsed")
 
-    # Tests - compact
-    if recs["tests"]:
-        st.markdown("### 🧪 Tests")
-        for test, freq, ref in recs["tests"]:
-            st.markdown(f"• **{test}** — _{freq}_ {get_guideline_link(ref)}")
+        if audio:
+            st.caption("🎤 *Audio captured*")
 
-    # Follow-up - one line
-    if recs["followup"]:
-        st.info(f"📅 **Follow-up:** {recs['followup'][0]} ({recs['followup'][1]})")
+        # Build custom scenario
+        custom_parts = []
+        if selected_weeks:
+            custom_parts.append(f"{selected_weeks} weeks")
+        if selected_conditions:
+            custom_parts.append(", ".join(selected_conditions))
+        if free_text:
+            custom_parts.append(free_text)
+        custom_scenario = ", ".join(custom_parts) if custom_parts else ""
 
-    # Info needed - compact
-    if recs["info_needed"]:
-        st.warning("❓ **Clarify:** " + " • ".join(recs["info_needed"]))
+        if custom_scenario:
+            if st.button("Analyze Custom", type="primary", use_container_width=True):
+                st.session_state.scenario_text = custom_scenario
+                st.session_state.patient_data = parse_scenario(custom_scenario)
+                st.session_state.guidelines = get_applicable_guidelines(
+                    st.session_state.patient_data,
+                    custom_scenario
+                )
+                st.session_state.analyzed = True
+                st.rerun()
 
-    # Decision trees - collapsed by default
-    if recs["decisions"]:
-        with st.expander("🔀 Decision Points (click to expand)"):
-            for dec in recs["decisions"]:
-                st.markdown(f"**{dec['q']}**")
-                for cond, actions, ref in dec["opts"]:
-                    st.markdown(f"  **IF** {cond} **→** {', '.join(actions)} {get_guideline_link(ref)}")
-                st.markdown("---")
+# ================================================================
+# MAIN PANEL
+# ================================================================
+st.title("Clinical Decision Support")
 
-    # Copy summary - collapsed
-    with st.expander("📋 Copy Summary"):
-        st.code(format_summary(recs, patient_name, parsed["weeks"]), language=None)
+if not st.session_state.analyzed:
+    # Welcome message
+    st.markdown("## Summary")
+    st.info("""
+**Welcome to Clinical Decision Support**
 
-    st.caption("Sources: [NG201 Antenatal](https://www.nice.org.uk/guidance/ng201) | [NG133 Hypertension](https://www.nice.org.uk/guidance/ng133) | [NG3 Diabetes](https://www.nice.org.uk/guidance/ng3) | [NG137 Twins](https://www.nice.org.uk/guidance/ng137)")
+This tool provides **explainable, guideline-based recommendations** for antenatal care.
 
-# History - collapsed
-with st.expander("📜 History"):
-    for h in reversed(st.session_state.history[-5:]):
-        ts = h.get('ts', h.get('timestamp', ''))[:16] if h else ''
-        q = h.get('q', h.get('query', ''))[:60] if h else ''
-        if ts and q:
-            st.caption(f"{ts}: {q}...")
-    if st.button("Clear"):
-        st.session_state.history = []
-        save_json(HISTORY_FILE, [])
-        st.rerun()
+**How to use:**
+1. Select gestation and conditions from the left panel
+2. Or enter a free-text clinical scenario
+3. Click **Analyze** to generate recommendations
 
-st.caption("⚠️ Decision support only. Verify against current guidelines.")
+**Features:**
+- ✅ Evidence-based guidelines (NICE, RCOG)
+- ✅ Transparent recommendations with source references
+- ✅ Customizable - select/deselect relevant guidelines
+- ✅ Tests, ultrasound, and follow-up checklists
+- ✅ Patient leaflets for shared decision-making
+- ✅ Timeline-based care planning
+
+*Select a scenario on the left to begin.*
+    """)
+
+else:
+    # Show results with tabs
+    patient_data = st.session_state.patient_data
+    guidelines = st.session_state.guidelines
+    weeks = patient_data.get("weeks") or 20  # Default to 20 if None or not specified
+
+    # TABS
+    tab_clinical, tab_patient = st.tabs(["📋 Clinical Care", "👤 Patient-led Care"])
+
+    # ================================================================
+    # TAB 1: CLINICAL CARE
+    # ================================================================
+    with tab_clinical:
+
+        # SUMMARY
+        st.markdown("## Summary")
+
+        # Show the original scenario
+        st.markdown(f"**Scenario:** *{st.session_state.scenario_text}*")
+
+        # Build detailed summary
+        summary_lines = []
+
+        # Demographics line
+        demo_parts = []
+        if patient_data.get("age"):
+            demo_parts.append(f"**{patient_data['age']} year old**")
+        if patient_data.get("parity"):
+            demo_parts.append(patient_data["parity"])
+        if demo_parts:
+            summary_lines.append(" · ".join(demo_parts))
+
+        # Gestation and BMI line
+        clinical_parts = []
+        if patient_data.get("weeks"):
+            clinical_parts.append(f"**Gestation:** {patient_data['weeks']} weeks")
+        if patient_data.get("bmi"):
+            bmi = patient_data['bmi']
+            bmi_class = ""
+            if bmi >= 40:
+                bmi_class = " (Class III Obesity)"
+            elif bmi >= 35:
+                bmi_class = " (Class II Obesity)"
+            elif bmi >= 30:
+                bmi_class = " (Class I Obesity)"
+            clinical_parts.append(f"**BMI:** {bmi}{bmi_class}")
+        if clinical_parts:
+            summary_lines.append(" · ".join(clinical_parts))
+
+        # Risk factors
+        if patient_data.get("risks"):
+            risks = patient_data["risks"]
+            summary_lines.append(f"**Risk factors:** {', '.join(risks)}")
+
+        # Display summary box
+        if summary_lines:
+            st.info("\n\n".join(summary_lines))
+        else:
+            st.info("No specific risk factors identified.")
+
+        # GUIDELINES
+        st.markdown("## Guidelines")
+        st.caption("*Select relevant guidelines (exclude if not applicable)*")
+
+        all_tests = []
+        all_ultrasound = []
+        all_followup = []
+        all_plan = []
+
+        if guidelines:
+            for g in guidelines:
+                with st.expander(f"📁 {g['name']}", expanded=False):
+                    st.caption(f"*{g['summary']}*")
+                    st.divider()
+                    for idx, action in enumerate(g.get("actions", [])):
+                        st.checkbox(
+                            f"{action['text']} {make_link(action['ref'])}",
+                            value=action.get("default", False),
+                            key=f"act_{g['code']}_{g['name'][:5]}_{idx}"
+                        )
+                    all_tests.extend(g.get("tests", []))
+                    all_ultrasound.extend(g.get("ultrasound", []))
+                    all_followup.extend(g.get("followup", []))
+                    if g.get("plan"):
+                        all_plan.extend([(w, d) for w, d in g["plan"] if w >= weeks])
+        else:
+            st.caption("No specific guidelines triggered. Add more details.")
+
+        # 🧪 TESTS (Checkboxes)
+        st.markdown("## 🧪 Tests")
+        if all_tests:
+            for i, t in enumerate(all_tests):
+                st.checkbox(
+                    f"**{t['text']}** — *{t['timing']}* {make_link(t['ref'])}",
+                    key=f"test_{i}",
+                    value=False
+                )
+        else:
+            st.caption("Routine bloods as per gestation")
+
+        # 🔬 ULTRASOUND
+        st.markdown("## 🔬 Ultrasound")
+        if all_ultrasound:
+            for s in all_ultrasound:
+                st.markdown(f"• **{s['text']}** — *{s['timing']}* {make_link(s['ref'])}")
+        else:
+            st.caption("Routine scans as per gestation")
+
+        # 📅 FOLLOW UP (Referrals & Specialist Care)
+        st.markdown("## 📅 Follow Up")
+        st.caption("*Referrals and specialist involvement:*")
+        if all_followup:
+            # Merge duplicate follow-up items, collecting all guideline references
+            merged_followup = {}
+            for f in all_followup:
+                key = (f['text'], f['timing'])
+                if key not in merged_followup:
+                    merged_followup[key] = {"text": f['text'], "timing": f['timing'], "refs": []}
+                if f['ref'] not in merged_followup[key]["refs"]:
+                    merged_followup[key]["refs"].append(f['ref'])
+
+            # Display merged follow-up items
+            for item in merged_followup.values():
+                if len(item["refs"]) == 1:
+                    st.markdown(f"• **{item['text']}** — *{item['timing']}* {make_link(item['refs'][0])}")
+                else:
+                    # Multiple guideline references
+                    refs_str = ", ".join([make_link(r) for r in item["refs"]])
+                    st.markdown(f"• **{item['text']}** — *{item['timing']}* ({refs_str})")
+        else:
+            st.caption("Routine midwifery-led care")
+
+        # ❓ CLARIFY - Questions to ask patient
+        all_clarify = []
+        all_decisions = []
+        for g in guidelines:
+            all_clarify.extend(g.get("clarify", []))
+            all_decisions.extend(g.get("decisions", []))
+
+        if all_clarify:
+            st.markdown("## ❓ Clarify")
+            st.caption("*Questions to ask the patient to individualise care:*")
+            for q in all_clarify:
+                st.markdown(f"• {q}")
+
+        # 🔀 DECISION POINTS (Collapsible)
+        if all_decisions:
+            with st.expander("🔀 **Decision Points**", expanded=False):
+                st.caption("*Clinical decision trees based on patient responses:*")
+                for d in all_decisions:
+                    st.markdown(f"**{d['question']}**")
+                    for opt in d['options']:
+                        st.markdown(f"  → {opt}")
+                    st.markdown("")
+
+        # 📆 PLAN & MANAGEMENT (Collapsible)
+        with st.expander("📆 **Plan & Management**", expanded=False):
+            st.caption("*Timeline of investigations, scans, and key actions:*")
+            if all_plan:
+                all_plan = sorted(set(all_plan), key=lambda x: x[0])
+                for target_week, desc in all_plan[:12]:
+                    weeks_away = target_week - weeks
+                    if weeks_away <= 0:
+                        st.markdown(f"• **Now:** {desc}")
+                    elif target_week > 40:
+                        st.markdown(f"• **Postnatal:** {desc}")
+                    else:
+                        st.markdown(f"• **{target_week}w** (in {weeks_away}w): {desc}")
+            else:
+                st.caption("Routine antenatal schedule")
+
+        # 📋 COPY SUMMARY (Collapsible)
+        with st.expander("📋 **Copy Summary**", expanded=False):
+            # Use merged follow-up for copy summary
+            merged_fu_texts = []
+            if all_followup:
+                merged_fu = {}
+                for f in all_followup:
+                    key = (f['text'], f['timing'])
+                    if key not in merged_fu:
+                        merged_fu[key] = {"text": f['text'], "refs": []}
+                    if f['ref'] not in merged_fu[key]["refs"]:
+                        merged_fu[key]["refs"].append(f['ref'])
+                for item in merged_fu.values():
+                    if len(item["refs"]) == 1:
+                        merged_fu_texts.append(f"{item['text']} [{item['refs'][0]}]")
+                    else:
+                        merged_fu_texts.append(f"{item['text']} [{', '.join(item['refs'])}]")
+
+            txt = f"""SUMMARY | {datetime.now().strftime('%d/%m/%Y')}
+{weeks}w | {patient_data.get('parity', '-')} | Age {patient_data.get('age', '?')}
+Risks: {', '.join(patient_data.get('risks', [])) or 'None'}
+
+TESTS: {'; '.join([t['text'] for t in all_tests]) or 'Routine'}
+ULTRASOUND: {'; '.join([s['text'] for s in all_ultrasound]) or 'Routine'}
+FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
+"""
+            st.code(txt, language=None)
+
+        st.caption("⚠️ Decision support only. Verify against current guidelines.")
+
+    # ================================================================
+    # TAB 2: PATIENT-LED CARE
+    # ================================================================
+    with tab_patient:
+        st.markdown("## 👤 Patient-led Care")
+        st.markdown("*Resources and leaflets to share with the patient for informed decision-making.*")
+
+        # Get relevant leaflets
+        leaflet_tags = patient_data.get("leaflet_tags", [])
+        leaflets = get_leaflets_for_patient(leaflet_tags)
+
+        st.markdown("### 📚 Patient Information Leaflets")
+        st.caption("*Select leaflets to share with the patient:*")
+
+        if leaflets:
+            # Group by source
+            nice_leaflets = [l for l in leaflets if l["source"] == "NICE"]
+            rcog_leaflets = [l for l in leaflets if l["source"] == "RCOG"]
+            hillingdon_leaflets = [l for l in leaflets if l["source"] == "Hillingdon"]
+            other_leaflets = [l for l in leaflets if l["source"] not in ["NICE", "RCOG", "Hillingdon"]]
+
+            if nice_leaflets:
+                st.markdown("#### NICE Patient Information")
+                for l in nice_leaflets:
+                    col1, col2 = st.columns([0.05, 0.95])
+                    col1.checkbox("", key=f"leaf_nice_{l['title'][:20]}", label_visibility="collapsed")
+                    col2.markdown(f"[{l['title']}]({l['url']})")
+
+            if rcog_leaflets:
+                st.markdown("#### RCOG Patient Information")
+                for l in rcog_leaflets:
+                    col1, col2 = st.columns([0.05, 0.95])
+                    col1.checkbox("", key=f"leaf_rcog_{l['title'][:20]}", label_visibility="collapsed")
+                    col2.markdown(f"[{l['title']}]({l['url']})")
+
+            if hillingdon_leaflets:
+                st.markdown("#### Hillingdon Hospital Leaflets")
+                for l in hillingdon_leaflets:
+                    col1, col2 = st.columns([0.05, 0.95])
+                    col1.checkbox("", key=f"leaf_hil_{l['title'][:20]}", label_visibility="collapsed")
+                    col2.markdown(f"[{l['title']}]({l['url']})")
+
+            if other_leaflets:
+                st.markdown("#### Other Resources")
+                for l in other_leaflets:
+                    col1, col2 = st.columns([0.05, 0.95])
+                    col1.checkbox("", key=f"leaf_other_{l['title'][:20]}", label_visibility="collapsed")
+                    col2.markdown(f"[{l['title']}]({l['url']}) — *{l['source']}*")
+
+            st.divider()
+
+            # Action buttons
+            col1, col2 = st.columns(2)
+            col1.button("📧 Email selected to patient", use_container_width=True)
+            col2.button("🖨️ Print selected leaflets", use_container_width=True)
+
+        else:
+            st.info("No specific leaflets identified. General antenatal information available above.")
+
+        st.divider()
+
+        st.markdown("### 💬 Discussion Points")
+        st.caption("*Key topics to discuss with the patient:*")
+
+        discussion_points = []
+        risks = patient_data.get("risks", [])
+
+        if any("pre-eclampsia" in r.lower() for r in risks):
+            discussion_points.append("Warning signs of pre-eclampsia (headache, visual disturbance, epigastric pain)")
+        if any("gdm" in r.lower() or "diabetes" in r.lower() for r in risks):
+            discussion_points.append("Blood glucose targets and monitoring schedule")
+            discussion_points.append("Dietary advice and lifestyle modifications")
+        if any("anaemia" in r.lower() for r in risks):
+            discussion_points.append("Iron supplementation - how to take, side effects")
+        if any("twins" in r.lower() for r in risks):
+            discussion_points.append("Signs of preterm labour")
+            discussion_points.append("Delivery planning and options")
+        if any("cholestasis" in r.lower() for r in risks):
+            discussion_points.append("Importance of reporting worsening itch")
+            discussion_points.append("Stillbirth risk and monitoring plan")
+        if any("vte" in r.lower() for r in risks):
+            discussion_points.append("How to inject LMWH")
+            discussion_points.append("Signs of DVT/PE to watch for")
+        if any("epilepsy" in r.lower() for r in risks):
+            discussion_points.append("Importance of medication adherence")
+            discussion_points.append("Safety advice (bathing, heights)")
+
+        # Default points
+        discussion_points.append("Fetal movements - what's normal, when to seek help")
+        discussion_points.append("Next appointment and what to expect")
+
+        for point in discussion_points:
+            st.checkbox(point, key=f"discuss_{point[:20]}")

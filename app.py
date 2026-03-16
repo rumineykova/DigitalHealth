@@ -33,6 +33,10 @@ if "patient_data" not in st.session_state:
     st.session_state.patient_data = None
 if "guidelines" not in st.session_state:
     st.session_state.guidelines = []
+if "selected_actions" not in st.session_state:
+    st.session_state.selected_actions = []
+if "selected_tests" not in st.session_state:
+    st.session_state.selected_tests = []
 
 # Demo use cases
 DEMO_USE_CASES = {
@@ -771,6 +775,60 @@ else:
     guidelines = st.session_state.guidelines
     weeks = patient_data.get("weeks") or 20  # Default to 20 if None or not specified
 
+    # Collect all items from guidelines (before tabs so both can access)
+    all_tests = []
+    all_ultrasound = []
+    all_followup = []
+    all_plan = []
+    all_clarify = []
+    all_decisions = []
+
+    for g in guidelines:
+        all_tests.extend(g.get("tests", []))
+        all_ultrasound.extend(g.get("ultrasound", []))
+        all_followup.extend(g.get("followup", []))
+        all_clarify.extend(g.get("clarify", []))
+        all_decisions.extend(g.get("decisions", []))
+        if g.get("plan"):
+            all_plan.extend([(w, d) for w, d in g["plan"] if w >= weeks])
+
+    # Deduplicate tests by text
+    seen_tests = set()
+    unique_tests = []
+    for t in all_tests:
+        if t['text'] not in seen_tests:
+            seen_tests.add(t['text'])
+            unique_tests.append(t)
+    all_tests = unique_tests
+
+    # Deduplicate ultrasound by text
+    seen_us = set()
+    unique_us = []
+    for u in all_ultrasound:
+        if u['text'] not in seen_us:
+            seen_us.add(u['text'])
+            unique_us.append(u)
+    all_ultrasound = unique_us
+
+    # Merge duplicate follow-up items
+    merged_followup = {}
+    for f in all_followup:
+        key = f['text']
+        if key not in merged_followup:
+            merged_followup[key] = {"text": f['text'], "timing": f['timing'], "refs": []}
+        if f['ref'] not in merged_followup[key]["refs"]:
+            merged_followup[key]["refs"].append(f['ref'])
+    all_followup_merged = list(merged_followup.values())
+
+    # Deduplicate clarify questions
+    all_clarify = list(dict.fromkeys(all_clarify))
+
+    # Deduplicate and clean risk factors
+    risks = patient_data.get("risks", [])
+    if patient_data.get("bmi"):
+        risks = [r for r in risks if not r.startswith("BMI")]
+    unique_risks = list(dict.fromkeys(risks))
+
     # TABS
     tab_clinical, tab_patient = st.tabs(["📋 Clinical Care", "👤 Patient-led Care"])
 
@@ -782,86 +840,70 @@ else:
         # SUMMARY
         st.markdown("## Summary")
 
-        # Show the original scenario
-        st.markdown(f"**Scenario:** *{st.session_state.scenario_text}*")
-
-        # Build detailed summary
-        summary_lines = []
-
-        # Demographics line
-        demo_parts = []
+        # Build compact summary
+        summary_parts = []
         if patient_data.get("age"):
-            demo_parts.append(f"**{patient_data['age']} year old**")
+            summary_parts.append(f"**{patient_data['age']}yo**")
         if patient_data.get("parity"):
-            demo_parts.append(patient_data["parity"])
-        if demo_parts:
-            summary_lines.append(" · ".join(demo_parts))
-
-        # Gestation and BMI line
-        clinical_parts = []
+            summary_parts.append(patient_data["parity"])
         if patient_data.get("weeks"):
-            clinical_parts.append(f"**Gestation:** {patient_data['weeks']} weeks")
+            summary_parts.append(f"**{patient_data['weeks']}w**")
         if patient_data.get("bmi"):
             bmi = patient_data['bmi']
-            bmi_class = ""
             if bmi >= 40:
-                bmi_class = " (Class III Obesity)"
+                summary_parts.append(f"BMI {bmi} (Class III)")
             elif bmi >= 35:
-                bmi_class = " (Class II Obesity)"
+                summary_parts.append(f"BMI {bmi} (Class II)")
             elif bmi >= 30:
-                bmi_class = " (Class I Obesity)"
-            clinical_parts.append(f"**BMI:** {bmi}{bmi_class}")
-        if clinical_parts:
-            summary_lines.append(" · ".join(clinical_parts))
+                summary_parts.append(f"BMI {bmi}")
 
-        # Risk factors
-        if patient_data.get("risks"):
-            risks = patient_data["risks"]
-            summary_lines.append(f"**Risk factors:** {', '.join(risks)}")
+        # Build summary info box
+        summary_text = " · ".join(summary_parts) if summary_parts else ""
+        if unique_risks:
+            summary_text += f"\n\n**Risks:** {', '.join(unique_risks)}"
 
-        # Display summary box
-        if summary_lines:
-            st.info("\n\n".join(summary_lines))
-        else:
-            st.info("No specific risk factors identified.")
+        # Add applicable guidelines
+        if guidelines:
+            guideline_names = [g['name'] for g in guidelines]
+            summary_text += f"\n\n**Guidelines:** {', '.join(guideline_names)}"
+
+        st.info(summary_text if summary_text else "Enter scenario details to generate recommendations.")
 
         # GUIDELINES
         st.markdown("## Guidelines")
-        st.caption("*Select relevant guidelines (exclude if not applicable)*")
+        st.caption("*Expand to see actions. Selected actions will appear in summary.*")
 
-        all_tests = []
-        all_ultrasound = []
-        all_followup = []
-        all_plan = []
-
+        selected_actions = []
         if guidelines:
             for g in guidelines:
                 with st.expander(f"📁 {g['name']}", expanded=False):
                     st.caption(f"*{g['summary']}*")
                     st.divider()
                     for idx, action in enumerate(g.get("actions", [])):
-                        st.checkbox(
+                        key = f"act_{g['code']}_{g['name'][:5]}_{idx}"
+                        is_selected = st.checkbox(
                             f"{action['text']} {make_link(action['ref'])}",
                             value=action.get("default", False),
-                            key=f"act_{g['code']}_{g['name'][:5]}_{idx}"
+                            key=key
                         )
-                    all_tests.extend(g.get("tests", []))
-                    all_ultrasound.extend(g.get("ultrasound", []))
-                    all_followup.extend(g.get("followup", []))
-                    if g.get("plan"):
-                        all_plan.extend([(w, d) for w, d in g["plan"] if w >= weeks])
+                        if is_selected:
+                            selected_actions.append(action['text'])
         else:
             st.caption("No specific guidelines triggered. Add more details.")
 
         # 🧪 TESTS (Checkboxes)
         st.markdown("## 🧪 Tests")
+        selected_tests = []
         if all_tests:
             for i, t in enumerate(all_tests):
-                st.checkbox(
+                key = f"test_{t['text'][:20]}_{i}"
+                is_selected = st.checkbox(
                     f"**{t['text']}** — *{t['timing']}* {make_link(t['ref'])}",
-                    key=f"test_{i}",
+                    key=key,
                     value=False
                 )
+                if is_selected:
+                    selected_tests.append(t['text'])
         else:
             st.caption("Routine bloods as per gestation")
 
@@ -876,33 +918,15 @@ else:
         # 📅 FOLLOW UP (Referrals & Specialist Care)
         st.markdown("## 📅 Follow Up")
         st.caption("*Referrals and specialist involvement:*")
-        if all_followup:
-            # Merge duplicate follow-up items, collecting all guideline references
-            merged_followup = {}
-            for f in all_followup:
-                key = (f['text'], f['timing'])
-                if key not in merged_followup:
-                    merged_followup[key] = {"text": f['text'], "timing": f['timing'], "refs": []}
-                if f['ref'] not in merged_followup[key]["refs"]:
-                    merged_followup[key]["refs"].append(f['ref'])
-
-            # Display merged follow-up items
-            for item in merged_followup.values():
+        if all_followup_merged:
+            for item in all_followup_merged:
                 if len(item["refs"]) == 1:
                     st.markdown(f"• **{item['text']}** — *{item['timing']}* {make_link(item['refs'][0])}")
                 else:
-                    # Multiple guideline references
                     refs_str = ", ".join([make_link(r) for r in item["refs"]])
                     st.markdown(f"• **{item['text']}** — *{item['timing']}* ({refs_str})")
         else:
             st.caption("Routine midwifery-led care")
-
-        # ❓ CLARIFY - Questions to ask patient
-        all_clarify = []
-        all_decisions = []
-        for g in guidelines:
-            all_clarify.extend(g.get("clarify", []))
-            all_decisions.extend(g.get("decisions", []))
 
         if all_clarify:
             st.markdown("## ❓ Clarify")
@@ -924,8 +948,8 @@ else:
         with st.expander("📆 **Plan & Management**", expanded=False):
             st.caption("*Timeline of investigations, scans, and key actions:*")
             if all_plan:
-                all_plan = sorted(set(all_plan), key=lambda x: x[0])
-                for target_week, desc in all_plan[:12]:
+                all_plan_sorted = sorted(set(all_plan), key=lambda x: x[0])
+                for target_week, desc in all_plan_sorted[:12]:
                     weeks_away = target_week - weeks
                     if weeks_away <= 0:
                         st.markdown(f"• **Now:** {desc}")
@@ -936,28 +960,36 @@ else:
             else:
                 st.caption("Routine antenatal schedule")
 
+        # ✅ SELECTED ACTIONS (Dynamic summary of clicked items)
+        if selected_actions or selected_tests:
+            st.markdown("## ✅ Selected Actions")
+            st.caption("*Items you've selected from guidelines and tests:*")
+            if selected_actions:
+                for action in selected_actions:
+                    st.markdown(f"• {action}")
+            if selected_tests:
+                for test in selected_tests:
+                    st.markdown(f"• 🧪 {test}")
+
         # 📋 COPY SUMMARY (Collapsible)
         with st.expander("📋 **Copy Summary**", expanded=False):
-            # Use merged follow-up for copy summary
+            # Build merged follow-up texts
             merged_fu_texts = []
-            if all_followup:
-                merged_fu = {}
-                for f in all_followup:
-                    key = (f['text'], f['timing'])
-                    if key not in merged_fu:
-                        merged_fu[key] = {"text": f['text'], "refs": []}
-                    if f['ref'] not in merged_fu[key]["refs"]:
-                        merged_fu[key]["refs"].append(f['ref'])
-                for item in merged_fu.values():
-                    if len(item["refs"]) == 1:
-                        merged_fu_texts.append(f"{item['text']} [{item['refs'][0]}]")
-                    else:
-                        merged_fu_texts.append(f"{item['text']} [{', '.join(item['refs'])}]")
+            for item in all_followup_merged:
+                if len(item["refs"]) == 1:
+                    merged_fu_texts.append(f"{item['text']} [{item['refs'][0]}]")
+                else:
+                    merged_fu_texts.append(f"{item['text']} [{', '.join(item['refs'])}]")
+
+            # Include selected actions and tests
+            selected_items = selected_actions + [f"TEST: {t}" for t in selected_tests]
 
             txt = f"""SUMMARY | {datetime.now().strftime('%d/%m/%Y')}
 {weeks}w | {patient_data.get('parity', '-')} | Age {patient_data.get('age', '?')}
-Risks: {', '.join(patient_data.get('risks', [])) or 'None'}
+Risks: {', '.join(unique_risks) or 'None'}
+Guidelines: {', '.join([g['name'] for g in guidelines]) or 'None'}
 
+SELECTED ACTIONS: {'; '.join(selected_items) or 'None selected'}
 TESTS: {'; '.join([t['text'] for t in all_tests]) or 'Routine'}
 ULTRASOUND: {'; '.join([s['text'] for s in all_ultrasound]) or 'Routine'}
 FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
@@ -972,6 +1004,62 @@ FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
     with tab_patient:
         st.markdown("## 👤 Patient-led Care")
         st.markdown("*Resources and leaflets to share with the patient for informed decision-making.*")
+
+        # Patient-friendly summary
+        st.markdown("### 📝 Your Care Summary")
+        st.caption("*A simple explanation of your care plan:*")
+
+        # Build patient-friendly text
+        patient_summary = []
+
+        # Basic info in lay terms
+        if patient_data.get("weeks"):
+            patient_summary.append(f"You are currently **{patient_data['weeks']} weeks pregnant**.")
+
+        # Explain risk factors in lay terms
+        risks = patient_data.get("risks", [])
+        if risks:
+            patient_summary.append("\n**What we're monitoring:**")
+            for risk in risks:
+                risk_lower = risk.lower()
+                if "epilepsy" in risk_lower:
+                    patient_summary.append("• Your epilepsy - we'll work with specialists to keep you and baby safe while managing your medication")
+                elif "bmi" in risk_lower or "obesity" in risk_lower:
+                    patient_summary.append("• Your weight - we'll offer extra support including blood sugar testing and additional scans")
+                elif "sga" in risk_lower or "small" in risk_lower:
+                    patient_summary.append("• Baby's growth - because of your history, we'll do extra scans to check baby is growing well")
+                elif "dvt" in risk_lower or "vte" in risk_lower:
+                    patient_summary.append("• Blood clot prevention - you'll need blood-thinning injections to keep you safe")
+                elif "preterm" in risk_lower:
+                    patient_summary.append("• Risk of early labour - we'll monitor your cervix and discuss ways to reduce this risk")
+                elif "pre-eclampsia" in risk_lower:
+                    patient_summary.append("• Blood pressure - we'll check this regularly and watch for warning signs")
+                elif "caesarean" in risk_lower:
+                    patient_summary.append("• Previous caesarean - we'll discuss your options for this birth")
+                elif "diabetes" in risk_lower or "gdm" in risk_lower:
+                    patient_summary.append("• Blood sugar levels - we'll help you monitor and manage these")
+                else:
+                    patient_summary.append(f"• {risk}")
+
+        # What scans to expect
+        if all_ultrasound:
+            patient_summary.append("\n**Scans you'll have:**")
+            for scan in all_ultrasound[:3]:  # Show first 3
+                patient_summary.append(f"• {scan['text']} ({scan['timing']})")
+
+        # Who you'll see
+        if all_followup_merged:
+            patient_summary.append("\n**Who you'll see:**")
+            for fu in all_followup_merged[:3]:  # Show first 3
+                patient_summary.append(f"• {fu['text']}")
+
+        # Display patient summary
+        if patient_summary:
+            st.info("\n".join(patient_summary))
+        else:
+            st.info("Your care plan will appear here once your details are entered.")
+
+        st.divider()
 
         # Get relevant leaflets
         leaflet_tags = patient_data.get("leaflet_tags", [])

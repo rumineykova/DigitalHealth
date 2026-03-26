@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pregnancy Guidelines Quick Reference</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #1a1a1a;
+            line-height: 1.6;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            color: #0066cc;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        /* INPUT SECTION */
+        .input-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .input-group textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+        }
+
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        .quick-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .quick-input {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .quick-input label {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 0.95rem;
+        }
+
+        .quick-input input,
+        .quick-input select {
+            padding: 10px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .quick-input input:focus,
+        .quick-input select:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            font-size: 1rem;
+        }
+
+        .checkbox-item input {
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+        }
+
+        .btn-generate {
+            width: 100%;
+            background: #0066cc;
+            color: white;
+            padding: 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-generate:hover {
+            background: #0052a3;
+        }
+
+        /* RESULTS SECTION */
+        .results-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .patient-summary {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            font-size: 1rem;
+            line-height: 1.8;
+        }
+
+        .patient-summary strong {
+            color: #0066cc;
+        }
+
+        .alert-box {
+            background: #fff3cd;
+            border-left: 4px solid #ff6b6b;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 4px;
+        }
+
+        .alert-box strong {
+            color: #c63d00;
+            font-size: 1.05rem;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .rec-item {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .rec-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .rec-header {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .rec-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .rec-badge {
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-urgent {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .badge-time-sensitive {
+            background: #ffa726;
+            color: white;
+        }
+
+        .badge-routine {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .rec-reason {
+            font-size: 1rem;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        .rec-timing {
+            font-size: 0.95rem;
+            color: #0066cc;
+            margin-bottom: 8px;
+        }
+
+        .rec-guideline {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .rec-guideline a {
+            color: #0066cc;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .rec-guideline a:hover {
+            text-decoration: underline;
+        }
+
+        .clarification-item {
+            background: #fffbf0;
+            padding: 15px;
+            border-left: 3px solid #ffa726;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        .clarification-q {
+            font-weight: 600;
+            color: #e65100;
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        .clarification-why {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .clarification-action {
+            font-size: 0.95rem;
+            color: #333;
+            padding-top: 8px;
+            border-top: 1px solid #ffe082;
+        }
+
+        .followup-item {
+            display: flex;
+            gap: 15px;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .followup-timing {
+            background: #e7f3ff;
+            padding: 10px 15px;
+            border-radius: 6px;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .followup-timing-value {
+            font-weight: 700;
+            color: #0066cc;
+            font-size: 1.1rem;
+        }
+
+        .followup-timing-label {
+            font-size: 0.75rem;
+            color: #0066cc;
+            text-transform: uppercase;
+        }
+
+        .followup-details {
+            flex: 1;
+        }
+
+        .followup-action {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+
+        .followup-reason {
+            font-size: 0.95rem;
+            color: #666;
+        }
+
+        .summary-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin-top: 30px;
+        }
+
+        .summary-box h3 {
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+        }
+
+        .summary-textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+        }
+
+        .btn-copy {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+            font-size: 0.95rem;
+        }
+
+        .btn-copy:hover {
+            background: #218838;
+        }
+
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            padding: 10px 0;
+        }
+
+        .welcome {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .welcome h2 {
+            color: #1a1a1a;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .welcome p {
+            color: #666;
+            font-size: 1.05rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏥 Pregnancy Guidelines Quick Reference</h1>
+            <p class="subtitle">Fast access to ACOG-based recommendations</p>
+        </header>
+
+        <!-- Input Section -->
+        <div class="input-section">
+            <form id="patientForm">
+                <div class="input-group">
+                    <label>Patient Information (Free Text)</label>
+                    <textarea id="patientInfo" placeholder="e.g., 28yo G2P1, here for routine prenatal visit..."></textarea>
+                </div>
+
+                <div class="quick-inputs">
+                    <div class="quick-input">
+                        <label>Gestational Age (weeks)</label>
+                        <input type="number" id="weeks" min="0" max="42" value="12" required>
+                    </div>
+                    <div class="quick-input">
+                        <label>Days</label>
+                        <input type="number" id="days" min="0" max="6" value="0">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Common Symptoms/Concerns</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="bleeding">
+                            <label for="bleeding">Vaginal bleeding</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="headache">
+                            <label for="headache">Headache</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="hypertension">
+                            <label for="hypertension">Elevated BP</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="decreasedMovement">
+                            <label for="decreasedMovement">↓ Fetal movement</label>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-generate">Get Recommendations</button>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden">
+            <div class="results-section">
+                <div class="patient-summary" id="patientSummary"></div>
+
+                <div id="alertsContainer"></div>
+
+                <!-- Labs -->
+                <div class="section" id="labsSection">
+                    <div class="section-title">Laboratory Tests</div>
+                    <div id="labsContent"></div>
+                </div>
+
+                <!-- Imaging -->
+                <div class="section" id="imagingSection">
+                    <div class="section-title">Imaging Studies</div>
+                    <div id="imagingContent"></div>
+                </div>
+
+                <!-- Clarification -->
+                <div class="section" id="clarificationSection">
+                    <div class="section-title">Clarification Needed</div>
+                    <div id="clarificationContent"></div>
+                </div>
+
+                <!-- Follow-up -->
+                <div class="section" id="followupSection">
+                    <div class="section-title">Follow-up Plan</div>
+                    <div id="followupContent"></div>
+                </div>
+
+                <!-- Summary -->
+                <div class="summary-box">
+                    <h3>Clinical Summary (Copy to EHR)</h3>
+                    <textarea id="summaryText" class="summary-textarea" readonly></textarea>
+                    <button class="btn-copy" onclick="copySummary()">Copy to Clipboard</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const guidelineLinks = {
+            'ACOG Practice Bulletin No. 175': 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2016/12/ultrasound-in-pregnancy',
+            'ACOG Practice Bulletin No. 181': 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2017/08/prevention-of-rh-d-alloimmunization',
+            'ACOG Practice Bulletin No. 190': 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2018/02/gestational-diabetes-mellitus',
+            'ACOG Practice Bulletin No. 200': 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2018/11/early-pregnancy-loss',
+            'ACOG Practice Bulletin No. 222': 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2020/06/gestational-hypertension-and-preeclampsia',
+            'ACOG Practice Bulletin No. 226': 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2020/09/screening-for-fetal-chromosomal-abnormalities',
+            'ACOG Committee Opinion No. 630': 'https://www.acog.org/clinical/clinical-guidance/committee-opinion/articles/2015/05/screening-for-perinatal-depression',
+            'ACOG Committee Opinion No. 782': 'https://www.acog.org/clinical/clinical-guidance/committee-opinion/articles/2019/06/prevention-of-group-b-streptococcal-early-onset-disease-in-newborns',
+            'ACOG Guidelines for Perinatal Care': 'https://www.acog.org/clinical-information/physician-faqs/guidelines-for-perinatal-care',
+            'ACOG Practice Bulletin No. 145': 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2014/07/antepartum-fetal-surveillance'
+        };
+
+        function getGuidelineLink(guideline) {
+            const mainGuideline = guideline.split(':')[0].trim();
+            return guidelineLinks[mainGuideline] || '#';
+        }
+
+        function copySummary() {
+            const summaryText = document.getElementById('summaryText');
+            summaryText.select();
+            document.execCommand('copy');
+            alert('Copied to clipboard');
+        }
+
+        function generateRecommendations(weeks, days, symptoms) {
+            const recommendations = {
+                tests: [],
+                imaging: [],
+                clarification: [],
+                followup: [],
+                alerts: []
+            };
+
+            // First Trimester
+            if (weeks <= 13) {
+                if (weeks <= 10) {
+                    recommendations.tests.push({
+                        name: 'Complete Blood Count (CBC)',
+                        reason: 'Screen for anemia',
+                        guideline: 'ACOG Guidelines for Perinatal Care',
+                        urgency: 'routine'
+                    });
+                    recommendations.tests.push({
+                        name: 'Blood type and Rh status',
+                        reason: 'Identify Rh incompatibility risk',
+                        guideline: 'ACOG Practice Bulletin No. 181',
+                        urgency: 'routine'
+                    });
+                    recommendations.tests.push({
+                        name: 'HIV, Hepatitis B, Syphilis screening',
+                        reason: 'Standard prenatal infectious disease screening',
+                        guideline: 'ACOG/CDC STI guidelines',
+                        urgency: 'routine'
+                    });
+                    recommendations.tests.push({
+                        name: 'Urinalysis and urine culture',
+                        reason: 'Screen for asymptomatic bacteriuria',
+                        guideline: 'ACOG Committee Opinion No. 630',
+                        urgency: 'routine'
+                    });
+                }
+
+                if (weeks >= 7 && weeks <= 13) {
+                    recommendations.imaging.push({
+                        name: 'Dating ultrasound',
+                        reason: 'Confirm gestational age, assess viability',
+                        guideline: 'ACOG Practice Bulletin No. 175',
+                        timing: `Optimal now at ${weeks} weeks`,
+                        urgency: 'routine'
+                    });
+                }
+
+                if (weeks >= 11 && weeks <= 13) {
+                    recommendations.tests.push({
+                        name: 'First trimester combined screening (NT + serum)',
+                        reason: 'Screen for chromosomal abnormalities',
+                        guideline: 'ACOG Practice Bulletin No. 226',
+                        timing: `Window: 11-13+6 weeks (currently ${weeks}+${days})`,
+                        urgency: 'time-sensitive'
+                    });
+                    recommendations.clarification.push({
+                        question: 'Has patient discussed genetic screening preferences?',
+                        reason: 'Informed consent needed for screening options',
+                        action: 'Counsel on first trimester screening vs cell-free DNA options'
+                    });
+                }
+            }
+            // Second Trimester
+            else if (weeks >= 14 && weeks <= 27) {
+                if (weeks >= 18 && weeks <= 22) {
+                    recommendations.imaging.push({
+                        name: 'Comprehensive fetal anatomy ultrasound',
+                        reason: 'Detailed assessment of fetal structures and placenta',
+                        guideline: 'ACOG Practice Bulletin No. 175',
+                        timing: `Optimal window 18-22 weeks (currently ${weeks}+${days})`,
+                        urgency: 'routine'
+                    });
+                }
+
+                if (weeks >= 24 && weeks <= 28) {
+                    recommendations.tests.push({
+                        name: '1-hour glucose challenge test (50g)',
+                        reason: 'Screen for gestational diabetes',
+                        guideline: 'ACOG Practice Bulletin No. 190',
+                        timing: '24-28 weeks',
+                        urgency: 'routine'
+                    });
+                }
+            }
+            // Third Trimester
+            else {
+                if (weeks >= 35 && weeks <= 37) {
+                    recommendations.tests.push({
+                        name: 'Group B Streptococcus (GBS) culture',
+                        reason: 'Determine need for intrapartum antibiotics',
+                        guideline: 'ACOG Committee Opinion No. 782',
+                        timing: '35-37 weeks',
+                        urgency: 'routine'
+                    });
+                }
+
+                if (weeks >= 28 && weeks <= 32) {
+                    recommendations.tests.push({
+                        name: 'Repeat CBC',
+                        reason: 'Reassess for third trimester anemia',
+                        guideline: 'ACOG Guidelines for Perinatal Care',
+                        urgency: 'routine'
+                    });
+                }
+            }
+
+            // Symptom-based
+            if (symptoms.bleeding) {
+                recommendations.alerts.push({
+                    message: 'VAGINAL BLEEDING - Immediate evaluation required'
+                });
+
+                if (weeks < 20) {
+                    recommendations.imaging.push({
+                        name: 'Transvaginal ultrasound',
+                        reason: 'Assess viability, rule out ectopic pregnancy',
+                        guideline: 'ACOG Practice Bulletin No. 200',
+                        urgency: 'urgent'
+                    });
+                    recommendations.tests.push({
+                        name: 'Quantitative hCG',
+                        reason: 'Evaluate pregnancy viability',
+                        guideline: 'ACOG Practice Bulletin No. 200',
+                        urgency: 'urgent'
+                    });
+                }
+            }
+
+            if ((symptoms.headache || symptoms.hypertension) && weeks >= 20) {
+                recommendations.alerts.push({
+                    message: 'PREECLAMPSIA RISK - Rule out preeclampsia urgently'
+                });
+
+                recommendations.tests.push({
+                    name: 'Blood pressure measurement',
+                    reason: 'Assess for hypertensive disorder',
+                    guideline: 'ACOG Practice Bulletin No. 222',
+                    urgency: 'urgent'
+                });
+                recommendations.tests.push({
+                    name: 'Urine protein/creatinine ratio',
+                    reason: 'Screen for proteinuria',
+                    guideline: 'ACOG Practice Bulletin No. 222',
+                    urgency: 'urgent'
+                });
+                recommendations.tests.push({
+                    name: 'CMP and CBC with platelets',
+                    reason: 'Assess for end-organ dysfunction, HELLP syndrome',
+                    guideline: 'ACOG Practice Bulletin No. 222',
+                    urgency: 'urgent'
+                });
+            }
+
+            if (symptoms.decreasedMovement && weeks >= 28) {
+                recommendations.alerts.push({
+                    message: 'DECREASED FETAL MOVEMENT - Same-day evaluation needed'
+                });
+
+                recommendations.imaging.push({
+                    name: 'Non-stress test (NST) and biophysical profile',
+                    reason: 'Assess fetal well-being',
+                    guideline: 'ACOG Practice Bulletin No. 145',
+                    urgency: 'urgent'
+                });
+            }
+
+            // Follow-up planning
+            if (weeks < 28) {
+                recommendations.followup.push({
+                    action: 'Next prenatal visit',
+                    timing: '4 weeks',
+                    reason: 'Standard first/second trimester interval'
+                });
+            } else if (weeks < 36) {
+                recommendations.followup.push({
+                    action: 'Next prenatal visit',
+                    timing: '2 weeks',
+                    reason: 'Standard third trimester interval (28-36 weeks)'
+                });
+            } else {
+                recommendations.followup.push({
+                    action: 'Next prenatal visit',
+                    timing: '1 week',
+                    reason: 'Weekly visits after 36 weeks until delivery'
+                });
+            }
+
+            return recommendations;
+        }
+
+        function renderRecommendations(patientInfo, weeks, days, recommendations) {
+            // Patient Summary
+            document.getElementById('patientSummary').innerHTML = `
+                <strong>Patient:</strong> ${patientInfo || 'Not provided'}<br>
+                <strong>Gestational Age:</strong> ${weeks} weeks ${days} days
+            `;
+
+            // Alerts
+            const alertsContainer = document.getElementById('alertsContainer');
+            if (recommendations.alerts.length > 0) {
+                alertsContainer.innerHTML = recommendations.alerts.map(alert => `
+                    <div class="alert-box">
+                        <strong>⚠️ ${alert.message}</strong>
+                    </div>
+                `).join('');
+            } else {
+                alertsContainer.innerHTML = '';
+            }
+
+            // Labs
+            const labsContent = document.getElementById('labsContent');
+            if (recommendations.tests.length === 0) {
+                labsContent.innerHTML = '<div class="empty-state">No laboratory tests recommended at this gestational age</div>';
+            } else {
+                labsContent.innerHTML = recommendations.tests.map(test => `
+                    <div class="rec-item">
+                        <div class="rec-header">
+                            <div class="rec-name">${test.name}</div>
+                            <span class="rec-badge badge-${test.urgency}">${test.urgency}</span>
+                        </div>
+                        <div class="rec-reason">${test.reason}</div>
+                        ${test.timing ? `<div class="rec-timing">⏰ ${test.timing}</div>` : ''}
+                        <div class="rec-guideline">
+                            📚 <a href="${getGuidelineLink(test.guideline)}" target="_blank">${test.guideline} →</a>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Imaging
+            const imagingContent = document.getElementById('imagingContent');
+            if (recommendations.imaging.length === 0) {
+                imagingContent.innerHTML = '<div class="empty-state">No imaging studies recommended at this gestational age</div>';
+            } else {
+                imagingContent.innerHTML = recommendations.imaging.map(study => `
+                    <div class="rec-item">
+                        <div class="rec-header">
+                            <div class="rec-name">${study.name}</div>
+                            <span class="rec-badge badge-${study.urgency}">${study.urgency}</span>
+                        </div>
+                        <div class="rec-reason">${study.reason}</div>
+                        ${study.timing ? `<div class="rec-timing">⏰ ${study.timing}</div>` : ''}
+                        <div class="rec-guideline">
+                            📚 <a href="${getGuidelineLink(study.guideline)}" target="_blank">${study.guideline} →</a>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Clarification
+            const clarificationContent = document.getElementById('clarificationContent');
+            if (recommendations.clarification.length === 0) {
+                clarificationContent.innerHTML = '<div class="empty-state">No additional information needed</div>';
+            } else {
+                clarificationContent.innerHTML = recommendations.clarification.map(item => `
+                    <div class="clarification-item">
+                        <div class="clarification-q">${item.question}</div>
+                        <div class="clarification-why">${item.reason}</div>
+                        <div class="clarification-action">→ ${item.action}</div>
+                    </div>
+                `).join('');
+            }
+
+            // Follow-up
+            const followupContent = document.getElementById('followupContent');
+            followupContent.innerHTML = recommendations.followup.map(item => `
+                <div class="followup-item">
+                    <div class="followup-timing">
+                        <div class="followup-timing-value">${item.timing}</div>
+                        <div class="followup-timing-label">timing</div>
+                    </div>
+                    <div class="followup-details">
+                        <div class="followup-action">${item.action}</div>
+                        <div class="followup-reason">${item.reason}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Summary
+            let summary = `CLINICAL SUMMARY - ${new Date().toLocaleDateString()}\n\n`;
+            summary += `PATIENT: ${patientInfo || 'Not provided'}\n`;
+            summary += `GA: ${weeks}+${days} weeks\n\n`;
+
+            if (recommendations.alerts.length > 0) {
+                summary += 'ALERTS:\n';
+                recommendations.alerts.forEach(alert => {
+                    summary += `- ${alert.message}\n`;
+                });
+                summary += '\n';
+            }
+
+            if (recommendations.tests.length > 0) {
+                summary += 'LABORATORY TESTS:\n';
+                recommendations.tests.forEach((test, i) => {
+                    summary += `${i + 1}. ${test.name} - ${test.reason}\n`;
+                    summary += `   ${test.guideline}\n`;
+                });
+                summary += '\n';
+            }
+
+            if (recommendations.imaging.length > 0) {
+                summary += 'IMAGING:\n';
+                recommendations.imaging.forEach((study, i) => {
+                    summary += `${i + 1}. ${study.name} - ${study.reason}\n`;
+                    summary += `   ${study.guideline}\n`;
+                });
+                summary += '\n';
+            }
+
+            if (recommendations.followup.length > 0) {
+                summary += 'FOLLOW-UP:\n';
+                recommendations.followup.forEach((item, i) => {
+                    summary += `${i + 1}. ${item.action} - ${item.timing}\n`;
+                });
+            }
+
+            document.getElementById('summaryText').value = summary;
+        }
+
+        document.getElementById('patientForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const patientInfo = document.getElementById('patientInfo').value;
+            const weeks = parseInt(document.getElementById('weeks').value);
+            const days = parseInt(document.getElementById('days').value);
+            
+            const symptoms = {
+                bleeding: document.getElementById('bleeding').checked,
+                headache: document.getElementById('headache').checked,
+                hypertension: document.getElementById('hypertension').checked,
+                decreasedMovement: document.getElementById('decreasedMovement').checked
+            };
+
+            const recommendations = generateRecommendations(weeks, days, symptoms);
+            renderRecommendations(patientInfo, weeks, days, recommendations);
+
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+            // Scroll to results
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        });
+    </script>
+</body>
+</html>

@@ -67,7 +67,7 @@ if "audio_counter" not in st.session_state:
 DEMO_USE_CASES = {
     "Select a use case...": "",
     "Use Case 1: Epilepsy + Lamotrigine": "24 year old with a history of epilepsy, last seizure 4 months ago, on lamotrigine, currently 16 weeks pregnant",
-    "Use Case 2: High BMI + Previous SGA": "40 year old, BMI of 35 with a history of Caesarean section at 34 weeks for small baby 3 years ago, currently 28 weeks pregnant",
+    "Use Case 2: High BMI + Previous SGA + Previous Caesarean": "40 year old, 28 weeks pregnant, BMI of 35 with a history of Caesarean section at 34 weeks for small baby 3 years ago",
     "Use Case 3: Previous Preterm": "29 year old, previous preterm labour at 30 weeks",
     "Use Case 4: High BMI + DVT": "42 year old, BMI of 45, Para 2 and previous history of DVT",
 }
@@ -1267,12 +1267,12 @@ FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
                 action_lower = action.lower()
                 # Translate clinical actions to patient-friendly language
                 if "aspirin" in action_lower:
-                    patient_summary.append("• Daily aspirin to reduce risk of complications")
+                    patient_summary.append("• Daily low-dose aspirin to reduce risk of complications")
                 elif "folic acid 5mg" in action_lower:
                     patient_summary.append("• High-dose folic acid (5mg daily) for healthy baby development")
                 elif "vitamin d" in action_lower:
                     patient_summary.append("• Vitamin D supplement to support your and baby's health")
-                elif "lmwh" in action_lower or "blood-thinning" in action_lower:
+                elif "lmwh" in action_lower or "blood-thinning" in action_lower or "clexane" in action_lower:
                     patient_summary.append("• Daily injections to prevent blood clots")
                 elif "dietician" in action_lower or "dietitian" in action_lower:
                     patient_summary.append("• Support from a dietitian for healthy eating in pregnancy")
@@ -1288,16 +1288,47 @@ FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
                     patient_summary.append("• Medication to help with itching and protect baby")
                 elif "progesterone" in action_lower:
                     patient_summary.append("• Progesterone pessaries to reduce risk of early labour")
-                elif "vbac leaflet" in action_lower or "birth options" in action_lower:
+                elif "vbac" in action_lower or "birth after cs" in action_lower:
+                    patient_summary.append("• Information leaflet about birth options after caesarean")
+                elif "birth options" in action_lower or "mode of birth" in action_lower:
                     patient_summary.append("• Discussion about your birth options (vaginal birth or caesarean)")
+                elif "vbac success" in action_lower:
+                    patient_summary.append("• Good chance of vaginal birth (around 72-75% success rate)")
                 elif "epilepsy register" in action_lower:
                     patient_summary.append("• Registration on pregnancy epilepsy register for research")
-                elif "vte risk" in action_lower or "fgr risk" in action_lower:
-                    patient_summary.append("• Assessment of specific pregnancy risks")
+                elif "vte risk" in action_lower:
+                    patient_summary.append("• Assessment of your blood clot risk")
+                elif "fgr risk" in action_lower or "growth" in action_lower and "risk" in action_lower:
+                    patient_summary.append("• Assessment of baby's growth risk factors")
+                elif "saving babies" in action_lower or "sbl3" in action_lower:
+                    patient_summary.append("• Following national guidelines for monitoring baby's growth")
+                elif "grow chart" in action_lower or "customised" in action_lower:
+                    patient_summary.append("• Personalised growth chart to track your baby's size")
+                elif "thh fgr" in action_lower or "local fgr" in action_lower:
+                    patient_summary.append("• Following local hospital guidelines for baby's growth monitoring")
+                elif "previous cs" in action_lower or "operative notes" in action_lower:
+                    patient_summary.append("• Review of your previous caesarean details")
+                elif "ctg" in action_lower or "continuous monitoring" in action_lower:
+                    patient_summary.append("• Continuous heart rate monitoring for baby during labour")
+                elif "informed decision" in action_lower or "document" in action_lower and "decision" in action_lower:
+                    patient_summary.append("• Your birth preferences will be documented")
+                elif "cervical length" in action_lower:
+                    patient_summary.append("• Scan to measure your cervix length")
+                elif "drug level" in action_lower or "lamotrigine" in action_lower:
+                    patient_summary.append("• Blood tests to check your medication levels")
+                elif "fetal echo" in action_lower or "cardiac" in action_lower:
+                    patient_summary.append("• Detailed heart scan for baby")
+                elif "neurology" in action_lower:
+                    patient_summary.append("• Appointment with neurologist for epilepsy care")
                 else:
                     # If no match, show original but try to simplify
-                    simplified = action.replace("ANC", "clinic").replace("Obs Med", "obstetric medicine team")
-                    patient_summary.append(f"• {simplified}")
+                    simplified = action.replace("ANC", "antenatal clinic")
+                    simplified = simplified.replace("Obs Med", "obstetric medicine team")
+                    simplified = simplified.replace("GTG31", "").replace("SBL3", "").replace("THH-FGR", "")
+                    simplified = simplified.replace("NG192", "").replace("NG207", "").replace("GTG45", "")
+                    simplified = simplified.strip(" -()").strip()
+                    if simplified:
+                        patient_summary.append(f"• {simplified}")
 
         # What tests have been selected
         if selected_tests_list:

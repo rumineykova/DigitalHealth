@@ -11,6 +11,20 @@ import tempfile
 
 st.set_page_config(page_title="GuidelinesIQ:Maternity", page_icon="🏥", layout="wide")
 
+# CSS for small edit buttons
+st.markdown("""
+<style>
+/* Small edit button style */
+.small-edit-btn button {
+    font-size: 12px !important;
+    padding: 2px 8px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 HISTORY_FILE = os.path.join(DATA_DIR, "conversation_history.json")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -61,57 +75,59 @@ DEMO_USE_CASES = {
 # Patient leaflets database
 PATIENT_LEAFLETS = {
     "pre-eclampsia": [
-        {"title": "Pre-eclampsia: what you need to know", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng133/ifp/chapter/pre-eclampsia"},
-        {"title": "Pre-eclampsia patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/pre-eclampsia-patient-information-leaflet/"},
-        {"title": "High blood pressure in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Pre-eclampsia", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/pre-eclampsia/"},
+        {"title": "High blood pressure in pregnancy", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/related-conditions/complications/high-blood-pressure/"},
     ],
     "gestational_diabetes": [
-        {"title": "Gestational diabetes: what you need to know", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng3/ifp/chapter/gestational-diabetes"},
-        {"title": "Gestational diabetes patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/gestational-diabetes-patient-information-leaflet/"},
-        {"title": "Diabetes in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Gestational diabetes", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/gestational-diabetes/"},
+        {"title": "Gestational diabetes", "source": "NHS", "url": "https://www.nhs.uk/conditions/gestational-diabetes/"},
     ],
     "anaemia": [
-        {"title": "Anaemia in pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/"},
-        {"title": "Iron supplements in pregnancy", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/keeping-well/vitamins-supplements-and-nutrition/"},
-        {"title": "Eating well in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Iron deficiency anaemia", "source": "NHS", "url": "https://www.nhs.uk/conditions/iron-deficiency-anaemia/"},
+        {"title": "Vitamins and supplements in pregnancy", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/keeping-well/vitamins-supplements-and-nutrition/"},
     ],
     "twins": [
-        {"title": "Multiple pregnancy: having more than one baby", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng137/ifp/chapter/about-this-information"},
-        {"title": "Multiple pregnancy patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/multiple-pregnancy-patient-information-leaflet/"},
-        {"title": "Twin pregnancy information", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Multiple pregnancy (twins or more)", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/multiple-pregnancy-twins-or-more/"},
+        {"title": "Pregnant with twins", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/finding-out/pregnant-with-twins/"},
     ],
     "sga": [
-        {"title": "Small for gestational age baby", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/small-for-gestational-age-baby-patient-information-leaflet/"},
-        {"title": "Your baby's growth", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Having a small baby", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/having-a-small-baby/"},
+        {"title": "Your baby's movements", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/your-babys-movements-in-pregnancy/"},
+    ],
+    "previous_caesarean": [
+        {"title": "Birth after previous caesarean", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/birth-after-previous-caesarean/"},
+        {"title": "Caesarean section", "source": "NHS", "url": "https://www.nhs.uk/conditions/caesarean-section/"},
+    ],
+    "obesity": [
+        {"title": "Being overweight in pregnancy and after birth", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/being-overweight-in-pregnancy-and-after-birth/"},
+        {"title": "Healthy eating in pregnancy", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/keeping-well/have-a-healthy-diet/"},
     ],
     "cholestasis": [
-        {"title": "Obstetric cholestasis patient information", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/obstetric-cholestasis-patient-information-leaflet/"},
-        {"title": "Itching in pregnancy (ICP)", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Intrahepatic cholestasis of pregnancy (ICP)", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/intrahepatic-cholestasis-of-pregnancy-icp/"},
+        {"title": "Itching and intrahepatic cholestasis", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/related-conditions/complications/itching-and-intrahepatic-cholestasis/"},
     ],
     "thrombocytopenia": [
-        {"title": "Low platelet count in pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/"},
-        {"title": "Blood conditions in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Low platelet count (thrombocytopenia)", "source": "NHS", "url": "https://www.nhs.uk/conditions/thrombocytopenia/"},
     ],
     "vte": [
-        {"title": "Reducing the risk of blood clots", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/reducing-the-risk-of-venous-thromboembolism-during-pregnancy-and-after-birth-patient-information-leaflet/"},
-        {"title": "Blood clots in pregnancy", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Reducing the risk of blood clots in pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/reducing-the-risk-of-blood-clots-venous-thromboembolism-during-pregnancy-or-after-birth/"},
+        {"title": "Blood clots in pregnancy", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/related-conditions/complications/blood-clot/"},
     ],
     "epilepsy": [
-        {"title": "Epilepsy and pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/epilepsy-in-pregnancy-patient-information-leaflet/"},
-        {"title": "Epilepsy UK pregnancy guide", "source": "Epilepsy Action", "url": "https://www.epilepsy.org.uk/info/women/pregnancy"},
+        {"title": "Epilepsy and pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/epilepsy-and-pregnancy/"},
+        {"title": "Epilepsy and pregnancy", "source": "Epilepsy Action", "url": "https://www.epilepsy.org.uk/info/women/pregnancy"},
     ],
     "breech": [
-        {"title": "Turning a breech baby (ECV)", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/turning-a-breech-baby-in-the-womb-external-cephalic-version-patient-information-leaflet/"},
-        {"title": "Breech baby: your options", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/documents/_Patients/PatientLeaflets/maternity/"},
+        {"title": "Turning your breech baby (ECV)", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/turning-your-breech-baby-ecv/"},
+        {"title": "Breech baby at the end of pregnancy", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/labour-and-birth/what-happens/if-your-baby-is-breech/"},
     ],
     "reduced_movements": [
-        {"title": "Your baby's movements", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/your-babys-movements-in-pregnancy-patient-information-leaflet/"},
-        {"title": "Reduced fetal movements", "source": "Kicks Count", "url": "https://www.kickscount.org.uk/"},
+        {"title": "Your baby's movements in pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/your-babys-movements-in-pregnancy/"},
+        {"title": "Baby movements", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/keeping-well/your-babys-movements/"},
     ],
     "general": [
-        {"title": "Antenatal care: your options", "source": "NICE", "url": "https://www.nice.org.uk/guidance/ng201/ifp/chapter/about-this-information"},
-        {"title": "Pregnancy and birth", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-all-patient-information-leaflets/"},
-        {"title": "Antenatal appointments", "source": "Hillingdon", "url": "https://www.thh.nhs.uk/services/maternity/antenatal-care/"},
+        {"title": "Pregnancy, birth and beyond", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/"},
+        {"title": "Your pregnancy care", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/your-pregnancy-care/"},
     ],
 }
 
@@ -129,13 +145,18 @@ GUIDELINE_URLS = {
     "NG217": "https://www.nice.org.uk/guidance/ng217",  # Epilepsies in children, young people and adults
     "NG247": "https://www.nice.org.uk/guidance/ng247",  # Maternal and child nutrition
     "NG25": "https://www.nice.org.uk/guidance/ng25",    # Preterm labour and birth
+    "NG192": "https://www.nice.org.uk/guidance/ng192",  # Caesarean birth
+    "NG207": "https://www.nice.org.uk/guidance/ng207",  # Inducing labour
     # National Guidelines - RCOG Green-top (public links)
     "GTG68": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/epilepsy-in-pregnancy-green-top-guideline-no-68/",
     "GTG37a": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/reducing-the-risk-of-thrombosis-and-embolism-during-pregnancy-and-the-puerperium-green-top-guideline-no-37a/",
     "GTG37b": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/thrombosis-and-embolism-during-pregnancy-and-the-puerperium-acute-management-green-top-guideline-no-37b/",
     "GTG72": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/care-of-women-with-obesity-in-pregnancy-green-top-guideline-no-72/",
-    "GTG31": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/small-for-gestational-age-fetus-green-top-guideline-no-31/",
+    "GTG31": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/small-for-gestational-age-fetus-investigation-and-management-green-top-guideline-no-31/",
     "GTG43": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/obstetric-cholestasis-green-top-guideline-no-43/",
+    "GTG45": "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/birth-after-previous-caesarean-birth-green-top-guideline-no-45/",
+    # NHS England Guidelines
+    "SBL3": "https://www.england.nhs.uk/long-read/saving-babies-lives-version-3/",  # Saving Babies' Lives Care Bundle Version 3
     # Local Guidelines (Hillingdon/THH) - Direct links from Antenatal Care Schedule
     "THH-Epilepsy": SHAREPOINT_BASE + "202405211452040.Epilepsy%20in%20pregnancy%20V7.pdf&parent=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines",
     "THH-FGR": SHAREPOINT_BASE + "202411210723400.FGR%20Guideline%202024%20Hillingdon%202024.pdf&parent=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines",
@@ -241,6 +262,7 @@ def parse_scenario(text):
         data["labs"]["BMI"] = data["bmi"]
         if data["bmi"] >= 30:
             data["risks"].append(f"BMI {data['bmi']}")
+            data["leaflet_tags"].append("obesity")
 
     # Parity
     para_match = re.search(r'para\s*(\d+)|p(\d+)|g(\d+)p(\d+)', text_lower)
@@ -256,7 +278,7 @@ def parse_scenario(text):
         ("dvt", "Previous VTE", "vte"), ("thrombosis", "Previous VTE", "vte"),
         ("preterm", "Previous preterm", None),
         ("sga", "Previous SGA", "sga"), ("small baby", "Previous SGA", "sga"), ("fgr", "Previous FGR", "sga"),
-        ("caesarean", "Previous Caesarean", None), ("c-section", "Previous Caesarean", None),
+        ("caesarean", "Previous Caesarean", "previous_caesarean"), ("c-section", "Previous Caesarean", "previous_caesarean"),
         ("pre-eclampsia", "Previous pre-eclampsia", "pre-eclampsia"), ("preeclampsia", "Previous pre-eclampsia", "pre-eclampsia"),
         ("cholestasis", "Obstetric Cholestasis", "cholestasis"), ("itching", "? Obstetric Cholestasis", "cholestasis"),
         ("thrombocytopenia", "Thrombocytopenia", "thrombocytopenia"), ("low platelets", "Thrombocytopenia", "thrombocytopenia"),
@@ -282,22 +304,28 @@ def get_applicable_guidelines(patient_data, risks_text):
     weeks = patient_data.get("weeks") or 20  # Default to 20 if None
     age = patient_data.get("age")
 
-    # Previous SGA/FGR (small baby) - THH FGR Guideline
+    # Previous SGA/FGR (small baby) - GTG31, Saving Babies Lives v3, THH FGR Guideline
     if "previous sga" in combined or "small baby" in combined or "previous fgr" in combined:
         guidelines.append({
             "name": "Previous SGA/FGR",
             "code": "THH-FGR",
-            "summary": "Risk of recurrence. Aspirin 150mg, uterine artery Dopplers, serial growth scans. IOL at 39/40 unless other concerns.",
+            "summary": "Risk of recurrence. Follow THH FGR Guideline + GTG31 + Saving Babies Lives v3. Aspirin 150mg, uterine artery Dopplers, serial growth scans. IOL at 39/40.",
             "actions": [
-                {"text": "Aspirin 150mg from 12 weeks (if <20w)", "ref": "THH-FGR", "default": False},
-                {"text": "Assess risk factors for FGR (RCOG stratification)", "ref": "THH-FGR", "default": False}
+                {"text": "Aspirin 150mg from 12 weeks (if <20w) to reduce recurrence risk", "ref": "THH-FGR", "default": False},
+                {"text": "Assess risk factors for FGR using RCOG stratification", "ref": "GTG31", "default": False},
+                {"text": "Implement Saving Babies Lives v3 growth surveillance pathway", "ref": "SBL3", "default": False},
+                {"text": "Customised growth charts (GROW) per SBL3 Element 2", "ref": "SBL3", "default": False},
+                {"text": "Follow local THH FGR pathway for monitoring schedule", "ref": "THH-FGR", "default": False}
             ],
-            "tests": [{"text": "Uterine artery Doppler", "timing": "20-24 weeks", "ref": "THH-FGR"}],
+            "tests": [
+                {"text": "Uterine artery Doppler (pulsatility index)", "timing": "20-24 weeks", "ref": "THH-FGR"},
+                {"text": "Umbilical artery Doppler if growth concern", "timing": "As indicated", "ref": "GTG31"}
+            ],
             "ultrasound": [
                 {"text": "Serial growth scans 4-weekly", "timing": "From 28 weeks till birth", "ref": "THH-FGR"}
             ],
             "followup": [
-                {"text": "Consultant-led care", "timing": "Ongoing", "ref": "THH-FGR"},
+                {"text": "Consultant-led care per THH pathway", "timing": "Ongoing", "ref": "THH-FGR"},
                 {"text": "Fetal Medicine referral if EFW <3rd centile", "timing": "If needed", "ref": "THH-FGR"}
             ],
             "clarify": [
@@ -306,28 +334,43 @@ def get_applicable_guidelines(patient_data, risks_text):
                 "Were uterine artery Dopplers abnormal previously?"
             ],
             "decisions": [
-                {"question": "EFW at anomaly scan?", "options": ["≥10th centile → serial scans from 32w", "<10th centile → FGR pathway"]}
+                {"question": "EFW at anomaly scan?", "options": ["≥10th centile → serial scans from 28w (THH-FGR)", "<10th centile → FGR pathway (GTG31)"]}
             ],
             "plan": [
                 (12, "Start Aspirin 150mg if not already"),
-                (20, "Uterine artery Dopplers at anomaly scan"),
-                (28, "Growth scan"),
-                (32, "Growth scan"),
-                (36, "Growth scan"),
+                (20, "Uterine artery Dopplers at anomaly scan (THH-FGR)"),
+                (28, "Growth scan - start serial monitoring"),
+                (32, "Growth scan (THH-FGR)"),
+                (36, "Growth scan + plan delivery"),
                 (39, "Plan IOL unless other concerns")
             ]
         })
 
-    # Current SGA
+    # Current SGA - THH-FGR, GTG31, Saving Babies Lives v3
     if "current sga" in combined or "small for dates" in combined:
         guidelines.append({
             "name": "Current SGA/FGR",
             "code": "THH-FGR",
-            "summary": "EFW/AC <10th centile. Follow FGR pathway with serial monitoring.",
-            "tests": [{"text": "Umbilical artery Doppler", "timing": "Serial monitoring", "ref": "THH-FGR"}],
-            "ultrasound": [{"text": "Growth + Dopplers", "timing": "2-4 weekly per pathway", "ref": "THH-FGR"}],
-            "followup": [{"text": "Fetal medicine referral if <3rd centile", "timing": "Urgent", "ref": "THH-FGR"}],
-            "plan": [(weeks, "FGR pathway assessment"), (weeks+2, "Repeat scan + Dopplers"), (39, "Consider IOL")]
+            "summary": "EFW/AC <10th centile. Follow THH FGR pathway + GTG31 + Saving Babies Lives v3 with serial Dopplers.",
+            "actions": [
+                {"text": "Classify severity: <10th centile (SGA) vs <3rd centile (severe FGR)", "ref": "GTG31", "default": False},
+                {"text": "Document on GROW chart per SBL3 Element 2", "ref": "SBL3", "default": False},
+                {"text": "Follow THH FGR pathway for local management", "ref": "THH-FGR", "default": False}
+            ],
+            "tests": [
+                {"text": "Umbilical artery Doppler", "timing": "Serial monitoring", "ref": "THH-FGR"},
+                {"text": "MCA Doppler if UA abnormal", "timing": "As indicated", "ref": "GTG31"}
+            ],
+            "ultrasound": [{"text": "Growth + Dopplers", "timing": "2-weekly if <10th, weekly if <3rd", "ref": "THH-FGR"}],
+            "followup": [
+                {"text": "Fetal medicine referral if <3rd centile or abnormal Dopplers", "timing": "Urgent", "ref": "THH-FGR"},
+                {"text": "Consultant-led care with delivery planning", "timing": "Ongoing", "ref": "THH-FGR"}
+            ],
+            "decisions": [
+                {"question": "EFW centile?", "options": ["3rd-10th → 2-weekly scans, IOL 37-39w (THH-FGR)", "<3rd → weekly scans, fetal medicine, IOL 37w"]},
+                {"question": "Umbilical artery Doppler?", "options": ["Normal → continue surveillance", "Raised PI → increase monitoring", "AEDF/REDF → urgent fetal medicine, consider delivery"]}
+            ],
+            "plan": [(weeks, "FGR pathway assessment (THH-FGR)"), (weeks+1, "Repeat scan + Dopplers"), (37, "Delivery planning if severe FGR"), (39, "IOL if SGA")]
         })
 
     # Anaemia - THH Anaemia and Ferinject guideline
@@ -613,21 +656,44 @@ def get_applicable_guidelines(patient_data, risks_text):
             "plan": [(28, "Growth scan"), (32, "Growth scan"), (36, "Growth scan + MOB discussion"), (39, "IOL if on treatment"), (40, "IOL if diet-controlled")]
         })
 
-    # Previous Caesarean - THH VBAC guideline
+    # Previous Caesarean - GTG45, NG192, NG207, THH VBAC guideline
     if "caesarean" in combined or "c-section" in combined or "c section" in combined:
         guidelines.append({
             "name": "Previous Caesarean Section",
-            "code": "THH-VBAC",
-            "summary": "RCOG leaflet for VBAC vs CS. Birth options clinic at 16w. Mode of birth discussion at 36w.",
+            "code": "GTG45",
+            "summary": "VBAC vs ERCS counselling per GTG45/NG192. VBAC success 72-75% for 1 previous CS. Birth options clinic at 16w. Mode of birth at 36w.",
             "actions": [
-                {"text": "Provide RCOG VBAC leaflet at booking/16w", "ref": "THH-VBAC", "default": False}
+                {"text": "Provide RCOG birth after CS leaflet at booking (GTG45)", "ref": "GTG45", "default": False},
+                {"text": "Discuss VBAC success rates: 72-75% for 1 previous CS (GTG45)", "ref": "GTG45", "default": False},
+                {"text": "Review indication for previous CS - spontaneous labour onset is favourable (GTG45)", "ref": "GTG45", "default": False},
+                {"text": "Document informed decision about mode of birth (NG192)", "ref": "NG192", "default": False}
+            ],
+            "tests": [
+                {"text": "Review previous CS operative notes if available", "timing": "Booking", "ref": "GTG45"}
             ],
             "followup": [
                 {"text": "Birth options clinic with Senior MW (if 1 uncomplicated CS)", "timing": "16 weeks", "ref": "THH-VBAC"},
-                {"text": "16w ANC with obstetrician (if 2+ uterine surgeries or complex)", "timing": "16 weeks", "ref": "THH-VBAC"},
-                {"text": "36w Obstetrician ANC - Mode of Birth", "timing": "36 weeks", "ref": "THH-VBAC"}
+                {"text": "16w ANC with obstetrician (if 2+ uterine surgeries or complex)", "timing": "16 weeks", "ref": "GTG45"},
+                {"text": "36w Obstetrician ANC - Mode of Birth decision", "timing": "36 weeks", "ref": "NG192"},
+                {"text": "If VBAC planned, continuous CTG in labour (GTG45)", "timing": "Labour", "ref": "GTG45"}
             ],
-            "plan": [(16, "Birth options clinic / Obs ANC"), (36, "Mode of Birth discussion")]
+            "clarify": [
+                "Was previous CS in labour or prelabour (elective)?",
+                "What was the indication for previous CS?",
+                "Has she had a previous vaginal birth (increases VBAC success)?",
+                "Inter-delivery interval >18 months (reduces uterine rupture risk)?"
+            ],
+            "decisions": [
+                {"question": "Number of previous CS?", "options": ["1 uncomplicated → VBAC reasonable (GTG45)", "2+ → discuss with consultant, higher rupture risk"]},
+                {"question": "Previous vaginal birth?", "options": ["Yes → higher VBAC success (87-90%)", "No → standard VBAC success (72-75%)"]},
+                {"question": "If IOL considered (NG207)?", "options": ["Mechanical methods preferred for VBAC", "Avoid prostaglandins if possible (increased rupture risk)"]}
+            ],
+            "plan": [
+                (16, "Birth options clinic / Obs ANC - provide information"),
+                (36, "Mode of Birth discussion and documentation (NG192)"),
+                (39, "If VBAC, offer IOL from 39w per NG207 if appropriate"),
+                (41, "Do not exceed 41+0 for planned VBAC (GTG45)")
+            ]
         })
 
     # Advanced Maternal Age >40
@@ -1121,7 +1187,34 @@ TESTS: {'; '.join([t['text'] for t in all_tests]) or 'Routine'}
 ULTRASOUND: {'; '.join([s['text'] for s in all_ultrasound]) or 'Routine'}
 FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
 """
-            st.code(txt, language=None)
+            # Initialize session state for clinical summary
+            if "clinical_summary_text" not in st.session_state or st.session_state.get("clinical_summary_base") != txt:
+                st.session_state.clinical_summary_text = txt
+                st.session_state.clinical_summary_base = txt
+            if "clinical_summary_edit_mode" not in st.session_state:
+                st.session_state.clinical_summary_edit_mode = False
+
+            # Show read-only or editable based on mode
+            if st.session_state.clinical_summary_edit_mode:
+                st.session_state.clinical_summary_text = st.text_area(
+                    "Edit summary:",
+                    value=st.session_state.clinical_summary_text,
+                    height=250,
+                    key="clinical_summary_editor",
+                    label_visibility="collapsed"
+                )
+                st.markdown('<div class="small-edit-btn">', unsafe_allow_html=True)
+                if st.button("✓ Done", key="clinical_done_btn"):
+                    st.session_state.clinical_summary_edit_mode = False
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.code(st.session_state.clinical_summary_text, language=None)
+                st.markdown('<div class="small-edit-btn">', unsafe_allow_html=True)
+                if st.button("✎ Edit", key="clinical_edit_btn"):
+                    st.session_state.clinical_summary_edit_mode = True
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
         st.caption("⚠️ Decision support only. Verify against current guidelines.")
 
@@ -1134,7 +1227,6 @@ FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
 
         # Patient-friendly summary
         st.markdown("### 📝 Your Care Summary")
-        st.caption("*A simple explanation of your care plan:*")
 
         # Build patient-friendly text
         patient_summary = []
@@ -1237,9 +1329,38 @@ FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
             for fu in all_followup_merged[:3]:  # Show first 3
                 patient_summary.append(f"• {fu['text']}")
 
-        # Display patient summary
+        # Display patient summary with edit toggle
         if patient_summary:
-            st.info("\n".join(patient_summary))
+            patient_summary_txt = "\n".join(patient_summary)
+            # Initialize session state for patient summary
+            if "patient_summary_text" not in st.session_state or st.session_state.get("patient_summary_base") != patient_summary_txt:
+                st.session_state.patient_summary_text = patient_summary_txt
+                st.session_state.patient_summary_base = patient_summary_txt
+            if "patient_summary_edit_mode" not in st.session_state:
+                st.session_state.patient_summary_edit_mode = False
+
+            # Show read-only or editable based on mode
+            st.caption("*A simple explanation of your care plan:*")
+            if st.session_state.patient_summary_edit_mode:
+                st.session_state.patient_summary_text = st.text_area(
+                    "Edit patient summary:",
+                    value=st.session_state.patient_summary_text,
+                    height=300,
+                    key="patient_summary_editor",
+                    label_visibility="collapsed"
+                )
+                st.markdown('<div class="small-edit-btn">', unsafe_allow_html=True)
+                if st.button("✓ Done", key="patient_done_btn"):
+                    st.session_state.patient_summary_edit_mode = False
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.info(st.session_state.patient_summary_text)
+                st.markdown('<div class="small-edit-btn">', unsafe_allow_html=True)
+                if st.button("✎ Edit", key="patient_edit_btn"):
+                    st.session_state.patient_summary_edit_mode = True
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.info("Your care plan will appear here once your details are entered.")
 

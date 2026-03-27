@@ -198,10 +198,21 @@ def extract_weeks_from_timing(timing_str):
 
 def transcribe_audio(audio_bytes):
     """Transcribe audio using OpenAI Whisper API"""
+    tmp_file_path = None
     try:
+        # Check if audio_bytes is valid
+        if audio_bytes is None:
+            return "⚠️ No audio data received"
+
+        audio_data = audio_bytes.getvalue()
+        if not audio_data or len(audio_data) < 100:
+            return "⚠️ Audio recording too short"
+
         # Try to import openai
-        import openai
-        from openai import OpenAI
+        try:
+            from openai import OpenAI
+        except ImportError:
+            return "⚠️ OpenAI package not installed. Run: pip install openai"
 
         # Check for API key in environment or Streamlit secrets
         api_key = os.getenv("OPENAI_API_KEY")
@@ -220,33 +231,34 @@ def transcribe_audio(audio_bytes):
 
         # Save audio to temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-            tmp_file.write(audio_bytes.getvalue())
+            tmp_file.write(audio_data)
             tmp_file_path = tmp_file.name
 
-        try:
-            # Transcribe using Whisper
-            with open(tmp_file_path, "rb") as audio_file:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file
-                )
-            return transcript.text
-        finally:
-            # Clean up temporary file
-            os.unlink(tmp_file_path)
+        # Transcribe using Whisper
+        with open(tmp_file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+        return transcript.text if transcript and transcript.text else "⚠️ No speech detected"
 
-    except ImportError:
-        return "⚠️ OpenAI package not installed. Run: pip install openai"
     except Exception as e:
         return f"⚠️ Transcription error: {str(e)}"
+    finally:
+        # Clean up temporary file
+        if tmp_file_path and os.path.exists(tmp_file_path):
+            try:
+                os.unlink(tmp_file_path)
+            except:
+                pass
 
 def parse_scenario(text):
     """Parse free text scenario into structured data"""
     text_lower = text.lower()
     data = {"age": None, "weeks": None, "parity": None, "bmi": None, "risks": [], "labs": {}, "leaflet_tags": []}
 
-    # Age
-    age_match = re.search(r'(\d+)\s*(?:year|yr|y/?o)', text_lower)
+    # Age (handles "24yo", "24 year old", "40-year-old" from audio transcription)
+    age_match = re.search(r'(\d+)\s*-?\s*(?:year|yr|y/?o)', text_lower)
     if age_match:
         data["age"] = int(age_match.group(1))
 
@@ -839,34 +851,30 @@ with st.sidebar:
             elif not is_checked and cond in st.session_state.custom_conditions:
                 st.session_state.custom_conditions.remove(cond)
 
-        # Text + voice input at bottom
+        # Text input with audio
         st.markdown("**Describe scenario**")
         input_cols = st.columns([0.85, 0.15])
 
-        # Audio widget
+        # Audio recording button
         with input_cols[1]:
-            audio = st.audio_input("🎤", label_visibility="collapsed", key=f"audio_{st.session_state.audio_counter}")
+            audio = st.audio_input("Record", label_visibility="collapsed", key=f"audio_{st.session_state.audio_counter}")
 
-        # Process audio FIRST if present (before rendering text area)
+        # Process audio if recorded
         if audio:
-            with st.spinner("Transcribing audio..."):
+            with st.spinner("Transcribing..."):
                 transcription = transcribe_audio(audio)
-                if not transcription.startswith("⚠️"):
-                    # Append to existing text (with space separator if text exists)
-                    existing_text = st.session_state.custom_free_text
-                    if existing_text and not existing_text.endswith(" "):
-                        st.session_state.custom_free_text = existing_text + " " + transcription
+                if transcription and not transcription.startswith("⚠️"):
+                    existing = st.session_state.custom_free_text
+                    if existing and not existing.endswith(" "):
+                        st.session_state.custom_free_text = existing + " " + transcription
                     else:
-                        st.session_state.custom_free_text = (existing_text + transcription) if existing_text else transcription
-
-                    # Increment counter to reset audio widget
+                        st.session_state.custom_free_text = (existing + transcription) if existing else transcription
                     st.session_state.audio_counter += 1
-                    st.success("🎤 Audio transcribed and added!")
                     st.rerun()
                 else:
-                    st.error(transcription)
+                    st.error(transcription or "Transcription failed")
 
-        # Text area - render after audio processing
+        # Text area
         with input_cols[0]:
             free_text = st.text_area(
                 "Scenario",
@@ -875,7 +883,6 @@ with st.sidebar:
                 label_visibility="collapsed",
                 value=st.session_state.custom_free_text
             )
-            # Update session state from text area (only runs if no audio was processed)
             st.session_state.custom_free_text = free_text
 
         # Build custom scenario from all sources
@@ -910,7 +917,6 @@ with st.sidebar:
             st.session_state.custom_weeks = None
             st.session_state.custom_conditions = []
             st.session_state.custom_free_text = ""
-            st.session_state.audio_counter += 1  # Reset audio widget
             st.rerun()
 
 # ================================================================
@@ -1415,28 +1421,28 @@ FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
                 st.markdown("#### NICE Patient Information")
                 for l in nice_leaflets:
                     col1, col2 = st.columns([0.05, 0.95])
-                    col1.checkbox("", key=f"leaf_nice_{l['title'][:20]}", label_visibility="collapsed")
+                    col1.checkbox("Select", key=f"leaf_nice_{l['title'][:20]}", label_visibility="collapsed")
                     col2.markdown(f"[{l['title']}]({l['url']})")
 
             if rcog_leaflets:
                 st.markdown("#### RCOG Patient Information")
                 for l in rcog_leaflets:
                     col1, col2 = st.columns([0.05, 0.95])
-                    col1.checkbox("", key=f"leaf_rcog_{l['title'][:20]}", label_visibility="collapsed")
+                    col1.checkbox("Select", key=f"leaf_rcog_{l['title'][:20]}", label_visibility="collapsed")
                     col2.markdown(f"[{l['title']}]({l['url']})")
 
             if hillingdon_leaflets:
                 st.markdown("#### Hillingdon Hospital Leaflets")
                 for l in hillingdon_leaflets:
                     col1, col2 = st.columns([0.05, 0.95])
-                    col1.checkbox("", key=f"leaf_hil_{l['title'][:20]}", label_visibility="collapsed")
+                    col1.checkbox("Select", key=f"leaf_hil_{l['title'][:20]}", label_visibility="collapsed")
                     col2.markdown(f"[{l['title']}]({l['url']})")
 
             if other_leaflets:
                 st.markdown("#### Other Resources")
                 for l in other_leaflets:
                     col1, col2 = st.columns([0.05, 0.95])
-                    col1.checkbox("", key=f"leaf_other_{l['title'][:20]}", label_visibility="collapsed")
+                    col1.checkbox("Select", key=f"leaf_other_{l['title'][:20]}", label_visibility="collapsed")
                     col2.markdown(f"[{l['title']}]({l['url']}) — *{l['source']}*")
 
             st.divider()

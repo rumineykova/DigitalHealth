@@ -67,7 +67,7 @@ if "audio_counter" not in st.session_state:
 DEMO_USE_CASES = {
     "Select a use case...": "",
     "Use Case 1: Epilepsy + Lamotrigine": "24 year old with a history of epilepsy, last seizure 4 months ago, on lamotrigine, currently 16 weeks pregnant",
-    "Use Case 2: High BMI + Previous SGA + Previous Caesarean": "40 year old, 28 weeks pregnant, BMI of 35 with a history of Caesarean section at 34 weeks for small baby 3 years ago",
+    "Use Case 2: High BMI + Previous SGA + Previous Caesarean": "40 year old, 28 weeks pregnant, BMI of 35 with a history of Caesarean section at 38 weeks for small baby 3 years ago",
     "Use Case 3: Previous Preterm": "29 year old, previous preterm labour at 30 weeks",
     "Use Case 4: High BMI + DVT": "42 year old, BMI of 45, Para 2 and previous history of DVT",
 }

@@ -193,9 +193,21 @@ def make_link(ref):
     return ref
 
 def extract_weeks_from_timing(timing_str):
-    """Extract gestational week number from timing string. Returns None if not a specific week."""
+    """Extract gestational week number from timing string. Returns None if not a specific gestational week.
+    Named periods are mapped to representative gestational weeks for filtering purposes.
+    'Postnatal' and condition-based timings return None (always shown)."""
     timing_lower = timing_str.lower()
-    # Match patterns like "16 weeks", "32w", "at 36 weeks"
+    # Postnatal / condition-based / ongoing → no gestational week, always relevant
+    if re.search(r'postnatal|after\s+birth|after\s+delivery|if\s+|ongoing|urgent|as\s+indicated|as\s+needed', timing_lower):
+        return None
+    # Named gestational periods → map to last week of that period for filtering
+    if re.search(r'\bbook(?:ing)?\b', timing_lower):
+        return 10   # booking ~10 weeks
+    if re.search(r'first\s+trimester', timing_lower):
+        return 12
+    if re.search(r'second\s+trimester', timing_lower):
+        return 27
+    # Match explicit week numbers: "16 weeks", "32w", "at 36 weeks", "28-32 weeks" (take first number)
     week_match = re.search(r'(\d+)\s*w(?:eeks?)?', timing_lower)
     if week_match:
         return int(week_match.group(1))
@@ -585,7 +597,7 @@ def get_applicable_guidelines(patient_data, risks_text):
             "followup": [
                 {"text": "Joint obstetric haematology clinic (monthly)", "timing": "If platelets <80", "ref": "THH-Thrombocytopenia"},
                 {"text": "Anaesthetic referral (regional and general anaesthesia planning)", "timing": "If platelets <100", "ref": "THH-Thrombocytopenia"},
-                {"text": "Postnatal haematology outpatient referral at 8-12 weeks if thrombocytopenia persists", "timing": "Postnatal", "ref": "THH-Thrombocytopenia"},
+                {"text": "Postnatal haematology outpatient referral (at 8-12 weeks after birth) if thrombocytopenia persists", "timing": "Postnatal", "ref": "THH-Thrombocytopenia"},
             ],
             "clarify": [
                 "What is the current platelet count and trend (rising, stable, or falling)?",

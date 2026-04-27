@@ -66,14 +66,12 @@ if "audio_counter" not in st.session_state:
 # Demo use cases
 DEMO_USE_CASES = {
     "Select a use case...": "",
-    "Use Case 1: Epilepsy + Lamotrigine": "24 year old with a history of epilepsy, last seizure 4 months ago, on lamotrigine, currently 16 weeks pregnant",
-    "Use Case 2: High BMI + Previous SGA + Previous Caesarean": "40 year old, 28 weeks pregnant, BMI of 35 with a history of Caesarean section at 38 weeks for small baby 3 years ago",
-    "Use Case 3: Previous Preterm": "29 year old, previous preterm labour at 30 weeks",
-    "Use Case 4: High BMI + DVT": "42 year old, BMI of 45, Para 2 and previous history of DVT",
-    "Use Case 5: Recurrent SGA (Para 2, Worsening Pattern)": "35 year old, Para 2, reviewing at 16 weeks. Previous baby 1: boy born at 37+2, weighing 2.8kg. Previous baby 2: boy born at 37+3, weighing 2.2kg.",
-    "Use Case 6: Thrombocytopenia": "32 year old, reviewing at 30 weeks. Platelet count 60.",
-    "Use Case 7: Previous Pre-eclampsia + Previous Caesarean + AMA": "40 year old, reviewing at 28 weeks. Previous pre-eclampsia and previous Caesarean section.",
+    "Use Case 1: High BMI + Previous SGA + Previous Caesarean": "40 year old, 28 weeks pregnant, BMI of 35 with a history of Caesarean section at 38 weeks for small baby 3 years ago",
+    "Use Case 2: Recurrent SGA (Worsening Pattern)": "35 year old, reviewing at 16 weeks. Previous baby 1: boy born at 37+2, weighing 2.8kg. Previous baby 2: boy born at 37+3, weighing 2.2kg.",
+    "Use Case 3: Thrombocytopenia": "32 year old, reviewing at 30 weeks. Platelet count 60.",
+    "Use Case 4: Previous Pre-eclampsia + Previous Caesarean + AMA": "40 year old, reviewing at 28 weeks. Previous pre-eclampsia and previous Caesarean section.",
 }
+
 
 # Patient leaflets database
 PATIENT_LEAFLETS = {

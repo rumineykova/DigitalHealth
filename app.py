@@ -483,7 +483,7 @@ def get_applicable_guidelines(patient_data, risks_text):
             "code": "THH-Hypertension",
             "summary": "Previous PE = high risk of recurrence. Aspirin 150mg from 12w. Digital BP at all visits. Surveillance pathway determined by UA Doppler + EFW at 20w anomaly scan: normal UA+EFW → scans from 32w; abnormal UA → scans from 28w; EFW <10th → FMU referral. Deliver 37-38w if uncomplicated.",
             "actions": [
-                {"text": "Confirm patient is on Aspirin 150mg daily (start now if not yet prescribed and <16w; review if >16w)", "ref": "NG133", "default": True},
+                {"text": "Confirm patient is already on Aspirin 150mg daily — should have been started at 12 weeks" if weeks > 16 else "Start Aspirin 150mg daily now (NG133: from 12 weeks; still eligible)", "ref": "NG133", "default": True},
                 {"text": "Use digital BP at all antenatal appointments", "ref": "THH-Hypertension", "default": True},
                 {"text": "Ensure consultant-led care is established", "ref": "THH-Hypertension", "default": True},
                 {"text": "Advise patient on warning symptoms: severe headache, visual disturbance, epigastric pain, sudden oedema", "ref": "NG133", "default": False},
@@ -877,10 +877,10 @@ def get_applicable_guidelines(patient_data, risks_text):
         guidelines.append({
             "name": "Previous Caesarean Section",
             "code": "GTG45",
-            "summary": "VBAC vs ERCS counselling per GTG45/NG192. VBAC success 72-75% for 1 previous CS. Birth options clinic at 16w. Mode of birth at 36w.",
+            "summary": "VBAC vs ERCS counselling per GTG45/NG192. VBAC success rate is individually variable — discuss per GTG45. Birth options clinic at 16w. Mode of birth decision at 36w.",
             "actions": [
                 {"text": "Provide RCOG birth after CS leaflet at booking (GTG45)", "ref": "GTG45", "default": False},
-                {"text": "Discuss VBAC success rates: 72-75% for 1 previous CS (GTG45)", "ref": "GTG45", "default": False},
+                {"text": "Discuss individualised VBAC success likelihood per GTG45 — influenced by previous vaginal birth, indication for CS, and labour onset", "ref": "GTG45", "default": False},
                 {"text": "Review indication for previous CS - spontaneous labour onset is favourable (GTG45)", "ref": "GTG45", "default": False},
                 {"text": "Document informed decision about mode of birth (NG192)", "ref": "NG192", "default": False}
             ],
@@ -901,7 +901,7 @@ def get_applicable_guidelines(patient_data, risks_text):
             ],
             "decisions": [
                 {"question": "Number of previous CS?", "options": ["1 uncomplicated → VBAC reasonable (GTG45)", "2+ → discuss with consultant, higher rupture risk"]},
-                {"question": "Previous vaginal birth?", "options": ["Yes → higher VBAC success (87-90%)", "No → standard VBAC success (72-75%)"]},
+                {"question": "Previous vaginal birth?", "options": ["Yes → higher VBAC success likelihood (GTG45)", "No → lower but still majority successful; discuss per GTG45"]},
                 {"question": "If IOL considered (NG207)?", "options": ["Mechanical methods preferred for VBAC", "Avoid prostaglandins if possible (increased rupture risk)"]}
             ],
             "plan": [
@@ -921,7 +921,7 @@ def get_applicable_guidelines(patient_data, risks_text):
             "actions": [
                 {"text": "Aspirin risk assessment at 12 weeks", "ref": "THH-ANC", "default": False}
             ],
-            "tests": [{"text": "28w one-off SFH measurement", "timing": "28 weeks", "ref": "THH-ANC"}],
+            "tests": [{"text": "28w one-off SFH measurement (only if no ultrasound growth surveillance is otherwise planned for this pregnancy)", "timing": "28 weeks", "ref": "THH-ANC"}],
             "ultrasound": [{"text": "4-weekly growth scans", "timing": "From 32 weeks till birth", "ref": "THH-ANC"}],
             "followup": [
                 {"text": "16w Obstetrician ANC", "timing": "16 weeks", "ref": "THH-ANC"},
@@ -1503,7 +1503,7 @@ FOLLOW UP: {'; '.join(merged_fu_texts) or 'Routine'}
                 elif "birth options" in action_lower or "mode of birth" in action_lower:
                     patient_summary.append("• Discussion about your birth options (vaginal birth or caesarean)")
                 elif "vbac success" in action_lower:
-                    patient_summary.append("• Good chance of vaginal birth (around 72-75% success rate)")
+                    patient_summary.append("• Good chance of vaginal birth — your doctor will discuss your individual likelihood based on your history")
                 elif "epilepsy register" in action_lower:
                     patient_summary.append("• Registration on pregnancy epilepsy register for research")
                 elif "vte risk" in action_lower:

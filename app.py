@@ -70,6 +70,7 @@ DEMO_USE_CASES = {
     "Use Case 2: High BMI + Previous SGA + Previous Caesarean": "40 year old, 28 weeks pregnant, BMI of 35 with a history of Caesarean section at 38 weeks for small baby 3 years ago",
     "Use Case 3: Previous Preterm": "29 year old, previous preterm labour at 30 weeks",
     "Use Case 4: High BMI + DVT": "42 year old, BMI of 45, Para 2 and previous history of DVT",
+    "Use Case 5: Recurrent SGA (Para 2, Worsening Pattern)": "35 year old, Para 2, reviewing at 16 weeks. Previous baby 1: boy born at 37+2, weighing 2.8kg. Previous baby 2: boy born at 37+3, weighing 2.2kg.",
 }
 
 # Patient leaflets database
@@ -252,6 +253,26 @@ def transcribe_audio(audio_bytes):
             except:
                 pass
 
+# Approximate 10th centile birthweight thresholds (grams) by completed gestation week and sex
+# Based on UK-WHO/GROW growth charts. Used for automatic SGA detection from birth history.
+_SGA_10TH_CENTILE = {
+    # week: (male_g, female_g)
+    28: (800, 760),   29: (930, 885),   30: (1065, 1015), 31: (1220, 1165),
+    32: (1400, 1340), 33: (1600, 1530), 34: (1810, 1740), 35: (2045, 1965),
+    36: (2290, 2205), 37: (2530, 2440), 38: (2720, 2625), 39: (2895, 2800),
+    40: (3055, 2960), 41: (3195, 3100), 42: (3310, 3215),
+}
+
+def _is_sga(weight_g, gestation_weeks, sex="unknown"):
+    """Return True if birthweight < 10th centile for gestation and sex (UK-WHO/GROW)."""
+    week = min(max(int(gestation_weeks), 28), 42)
+    male_thresh, female_thresh = _SGA_10TH_CENTILE.get(week, _SGA_10TH_CENTILE[40])
+    if sex == "male":
+        return weight_g < male_thresh
+    elif sex == "female":
+        return weight_g < female_thresh
+    return weight_g < (male_thresh + female_thresh) // 2
+
 def parse_scenario(text):
     """Parse free text scenario into structured data"""
     text_lower = text.lower()
@@ -306,12 +327,32 @@ def parse_scenario(text):
             if leaflet_tag and leaflet_tag not in data["leaflet_tags"]:
                 data["leaflet_tags"].append(leaflet_tag)
 
+    # Previous birth history - auto-detect SGA from weight + gestation centile lookup
+    # Matches: "born at 37+2, weighing 2.8kg" / "at 37+3 weighing 2200g" etc.
+    sex_in_text = "male" if re.search(r'\bboy\b|\bsons?\b', text_lower) else \
+                  ("female" if re.search(r'\bgirl\b|\bdaughters?\b', text_lower) else "unknown")
+    birth_records = re.findall(
+        r'born\s+at\s+(\d+)(?:\+(\d+))?\s*,?\s*(?:weeks?)?\s*,?\s*(?:weighing|weigh(?:ed|s)?|weight(?:\s+of)?|wt\.?)?\s*(\d+(?:\.\d+)?)\s*(kg|g\b)',
+        text_lower
+    )
+    for record in birth_records:
+        gestation_weeks = int(record[0]) + (int(record[1]) / 7 if record[1] else 0)
+        weight_val = float(record[2])
+        weight_g = weight_val * 1000 if record[3] == "kg" else weight_val
+        if _is_sga(weight_g, gestation_weeks, sex_in_text):
+            if "Previous SGA" not in data["risks"]:
+                data["risks"].append("Previous SGA")
+            if "sga" not in data["leaflet_tags"]:
+                data["leaflet_tags"].append("sga")
+
     return data
 
 def get_applicable_guidelines(patient_data, risks_text):
     """Get guidelines based on conditions - aligned with THH Antenatal Care Schedule"""
     guidelines = []
-    combined = risks_text.lower()
+    # Include auto-detected risks (e.g. SGA from centile check) alongside raw text
+    parsed_risks = " ".join(patient_data.get("risks", [])).lower()
+    combined = risks_text.lower() + " " + parsed_risks
     labs = patient_data.get("labs", {})
     weeks = patient_data.get("weeks") or 20  # Default to 20 if None
     age = patient_data.get("age")
@@ -341,11 +382,14 @@ def get_applicable_guidelines(patient_data, risks_text):
                 {"text": "Fetal Medicine referral if EFW <3rd centile", "timing": "If needed", "ref": "THH-FGR"}
             ],
             "clarify": [
-                "What was the birthweight and gestation of previous SGA baby?",
-                "Was there placental dysfunction (abruption, pre-eclampsia)?",
-                "Were uterine artery Dopplers abnormal previously?"
+                "What were the birthweights and gestations of all previous SGA babies? Was there a worsening pattern between pregnancies?",
+                "Was there placental dysfunction (abruption, pre-eclampsia) in previous pregnancies?",
+                "Were uterine artery Dopplers abnormal previously?",
+                "Was PAPP-A low at first trimester screening in previous pregnancies? (marker of placental insufficiency)",
+                "Is the patient already on Aspirin 150mg? If not, start now - still eligible at <20 weeks (GTG31)"
             ],
             "decisions": [
+                {"question": "Number of previous SGA pregnancies?", "options": ["1 previous SGA → standard surveillance (THH-FGR)", "2+ previous SGA (recurrent) → higher recurrence risk, ensure Aspirin started, consider earlier Dopplers at 20w anomaly scan"]},
                 {"question": "EFW at anomaly scan?", "options": ["≥10th centile → serial scans from 28w (THH-FGR)", "<10th centile → FGR pathway (GTG31)"]}
             ],
             "plan": [

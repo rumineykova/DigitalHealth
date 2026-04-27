@@ -109,7 +109,9 @@ PATIENT_LEAFLETS = {
         {"title": "Itching and intrahepatic cholestasis", "source": "NHS", "url": "https://www.nhs.uk/pregnancy/related-conditions/complications/itching-and-intrahepatic-cholestasis/"},
     ],
     "thrombocytopenia": [
-        {"title": "Low platelet count (thrombocytopenia)", "source": "NHS", "url": "https://www.nhs.uk/conditions/thrombocytopenia/"},
+        {"title": "About ITP (Immune Thrombocytopenia)", "source": "ITP Support Association", "url": "https://itpsupport.org.uk/about-itp/"},
+        {"title": "ITP in Pregnancy – UK Pregnancy Registry", "source": "ITP Support Association", "url": "https://itpsupport.org.uk/itp-in-pregnancy-registry/"},
+        {"title": "ITP in Adults", "source": "ITP Support Association", "url": "https://itpsupport.org.uk/itp-in-adults/"},
     ],
     "vte": [
         {"title": "Reducing the risk of blood clots in pregnancy", "source": "RCOG", "url": "https://www.rcog.org.uk/for-the-public/browse-our-patient-information/reducing-the-risk-of-blood-clots-venous-thromboembolism-during-pregnancy-or-after-birth/"},

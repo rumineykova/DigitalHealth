@@ -481,7 +481,7 @@ def get_applicable_guidelines(patient_data, risks_text):
         guidelines.append({
             "name": "Previous Pre-eclampsia",
             "code": "THH-Hypertension",
-            "summary": "Previous PE = high risk of recurrence. Aspirin 150mg (start if not already; eligible up to 16w per NG133). Digital BP monitoring, serial growth scans from 28-32w, consultant-led care. Deliver by 37-38w if uncomplicated.",
+            "summary": "Previous PE = high risk of recurrence. Aspirin 150mg from 12w. Digital BP at all visits. Surveillance pathway determined by UA Doppler + EFW at 20w anomaly scan: normal UA+EFW → scans from 32w; abnormal UA → scans from 28w; EFW <10th → FMU referral. Deliver 37-38w if uncomplicated.",
             "actions": [
                 {"text": "Confirm patient is on Aspirin 150mg daily (start now if not yet prescribed and <16w; review if >16w)", "ref": "NG133", "default": True},
                 {"text": "Use digital BP at all antenatal appointments", "ref": "THH-Hypertension", "default": True},
@@ -496,10 +496,10 @@ def get_applicable_guidelines(patient_data, risks_text):
                 {"text": "Pre-eclampsia bloods (FBC, U&E, LFTs, clotting) if symptoms develop", "timing": "If symptomatic", "ref": "NG133"},
             ],
             "ultrasound": [
-                {"text": "Uterine artery Doppler + anomaly scan", "timing": "20 weeks", "ref": "THH-Hypertension"},
-                {"text": "Growth scan", "timing": "28 weeks", "ref": "THH-Hypertension"},
-                {"text": "Growth scan", "timing": "32 weeks", "ref": "THH-Hypertension"},
-                {"text": "Growth scan", "timing": "36 weeks", "ref": "THH-Hypertension"},
+                {"text": "Uterine artery Doppler + anomaly scan (determines entire surveillance pathway)", "timing": "20 weeks", "ref": "THH-Hypertension"},
+                {"text": "Serial growth scans every 2-4 weeks — if abnormal UA PI + EFW >10th centile at anomaly scan", "timing": "From 28 weeks", "ref": "THH-Hypertension"},
+                {"text": "Serial growth scans — if normal UA PI + EFW >10th centile at anomaly scan", "timing": "From 32 weeks", "ref": "THH-Hypertension"},
+                {"text": "Individualised serial growth scans — if normal UA PI + EFW <10th centile (discuss with FMU)", "timing": "From 26 weeks", "ref": "THH-Hypertension"},
             ],
             "followup": [
                 {"text": "Consultant-led antenatal care throughout", "timing": "Ongoing", "ref": "THH-Hypertension"},
@@ -519,9 +519,11 @@ def get_applicable_guidelines(patient_data, risks_text):
                     "Late-onset (>34w), uncomplicated → aspirin, growth scans 28/32/36w, deliver 37-38w",
                     "Early-onset (<34w) or HELLP/eclampsia → maternal medicine referral, intensive surveillance from 24w",
                 ]},
-                {"question": "Uterine artery Doppler at 20 weeks?", "options": [
-                    "Normal → routine growth scans from 28w",
-                    "Bilateral notching or raised PI → increase surveillance, growth scans from 24w",
+                {"question": "UA Doppler + EFW at 20-week anomaly scan? (THH-Hypertension pathway)", "options": [
+                    "Normal UA PI + EFW >10th centile → serial growth scans from 32w",
+                    "Abnormal UA PI + EFW >10th centile → serial growth scans from 28w (every 2-4 weeks)",
+                    "Normal UA PI + EFW <10th centile → individualised serial scans from 26-28w",
+                    "Abnormal UA PI + EFW <10th centile → FMU referral",
                 ]},
                 {"question": "BP ≥140/90 at any visit?", "options": [
                     "Yes → admit/day unit assessment, pre-eclampsia bloods, senior review per THH-Hypertension",
@@ -533,11 +535,13 @@ def get_applicable_guidelines(patient_data, risks_text):
                 ]},
             ],
             "plan": [
-                (20, "Uterine artery Doppler at anomaly scan (THH-Hypertension)"),
-                (28, "Growth scan + 28w bloods (FBC, U&E, LFTs)"),
-                (32, "Growth scan + Obs ANC review"),
-                (34, "34w bloods (FBC, U&E, LFTs)"),
-                (36, "Growth scan + delivery planning (aim 37-38w if uncomplicated)"),
+                (12, "Aspirin 150mg daily; Obstetric ANC within 2 weeks of booking (THH-Hypertension)"),
+                (20, "UA Doppler + anomaly scan → determines growth scan pathway"),
+                (26, "Growth scan if EFW <10th at 20w (individualised, discuss with FMU)"),
+                (28, "Growth scan + 28w bloods (FBC, U&E, LFTs) — if abnormal UA Doppler"),
+                (32, "Growth scan + Obs ANC — all pathways converge here"),
+                (34, "34w bloods (FBC, U&E, LFTs, uric acid)"),
+                (36, "Growth scan + delivery planning; aim delivery 37-38w if uncomplicated"),
                 (37, "Consider delivery; no later than 38w unless clinical reason"),
             ]
         })

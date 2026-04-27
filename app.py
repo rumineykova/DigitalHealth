@@ -72,6 +72,7 @@ DEMO_USE_CASES = {
     "Use Case 4: High BMI + DVT": "42 year old, BMI of 45, Para 2 and previous history of DVT",
     "Use Case 5: Recurrent SGA (Para 2, Worsening Pattern)": "35 year old, Para 2, reviewing at 16 weeks. Previous baby 1: boy born at 37+2, weighing 2.8kg. Previous baby 2: boy born at 37+3, weighing 2.2kg.",
     "Use Case 6: Thrombocytopenia": "32 year old, reviewing at 30 weeks. Platelet count 60.",
+    "Use Case 7: Previous Pre-eclampsia + Previous Caesarean + AMA": "40 year old, reviewing at 28 weeks. Previous pre-eclampsia and previous Caesarean section.",
 }
 
 # Patient leaflets database
@@ -475,25 +476,70 @@ def get_applicable_guidelines(patient_data, risks_text):
             "plan": [(weeks+2, "Repeat FBC"), (weeks+4, "Review response")]
         })
 
-    # Pre-eclampsia Risk - THH Antenatal Hypertension guideline
+    # Pre-eclampsia Risk - THH Antenatal Hypertension guideline + NICE NG133
     if "pre-eclampsia" in combined or "preeclampsia" in combined or "previous pet" in combined:
         guidelines.append({
             "name": "Previous Pre-eclampsia",
-            "code": "THH-ANC",
-            "summary": "Aspirin 150mg from 12w, digital BP monitoring, uterine artery Dopplers, individualised care.",
+            "code": "THH-Hypertension",
+            "summary": "Previous PE = high risk of recurrence. Aspirin 150mg (start if not already; eligible up to 16w per NG133). Digital BP monitoring, serial growth scans from 28-32w, consultant-led care. Deliver by 37-38w if uncomplicated.",
             "actions": [
-                {"text": "Aspirin 150mg from 12 weeks", "ref": "NG133", "default": False},
-                {"text": "Digital BP should be used at all times", "ref": "THH-ANC", "default": False}
+                {"text": "Confirm patient is on Aspirin 150mg daily (start now if not yet prescribed and <16w; review if >16w)", "ref": "NG133", "default": True},
+                {"text": "Use digital BP at all antenatal appointments", "ref": "THH-Hypertension", "default": True},
+                {"text": "Ensure consultant-led care is established", "ref": "THH-Hypertension", "default": True},
+                {"text": "Advise patient on warning symptoms: severe headache, visual disturbance, epigastric pain, sudden oedema", "ref": "NG133", "default": False},
+                {"text": "Complete 28-week bloods: FBC, U&E, LFTs, uric acid (if not yet done)", "ref": "THH-Hypertension", "default": True},
             ],
             "tests": [
-                {"text": "BP and urine each visit (2-4 weekly intervals)", "ref": "THH-ANC"},
-                {"text": "Booking bloods incl FBC and U&E – repeat 28 and 34 weeks", "ref": "THH-ANC"}
+                {"text": "BP and urinalysis (protein) at every antenatal visit", "timing": "Every 2-4 weeks", "ref": "THH-Hypertension"},
+                {"text": "FBC, U&E, LFTs, uric acid", "timing": "28 weeks and 34 weeks", "ref": "THH-Hypertension"},
+                {"text": "Urine PCR if proteinuria 1+ or more on dipstick", "timing": "As indicated", "ref": "NG133"},
+                {"text": "Pre-eclampsia bloods (FBC, U&E, LFTs, clotting) if symptoms develop", "timing": "If symptomatic", "ref": "NG133"},
             ],
             "ultrasound": [
-                {"text": "Anomaly + uterine artery Doppler", "timing": "20 weeks", "ref": "THH-ANC"},
-                {"text": "Serial growth scans", "timing": "From 28-32w depending on UA Doppler", "ref": "THH-ANC"}
+                {"text": "Uterine artery Doppler + anomaly scan", "timing": "20 weeks", "ref": "THH-Hypertension"},
+                {"text": "Growth scan", "timing": "28 weeks", "ref": "THH-Hypertension"},
+                {"text": "Growth scan", "timing": "32 weeks", "ref": "THH-Hypertension"},
+                {"text": "Growth scan", "timing": "36 weeks", "ref": "THH-Hypertension"},
             ],
-            "plan": [(20, "Anomaly + UA Doppler"), (28, "Growth scan if abnormal UA"), (32, "Growth scan"), (36, "Growth scan")]
+            "followup": [
+                {"text": "Consultant-led antenatal care throughout", "timing": "Ongoing", "ref": "THH-Hypertension"},
+                {"text": "Maternal medicine referral if previous early-onset (<34w), severe PE, HELLP, or eclampsia", "timing": "Ongoing", "ref": "THH-Hypertension"},
+                {"text": "Obstetric review and delivery planning", "timing": "36 weeks", "ref": "NG133"},
+            ],
+            "clarify": [
+                "How severe was the previous pre-eclampsia? Early-onset (<34w), late-onset (>34w), HELLP, or eclampsia?",
+                "At what gestation was the previous PE diagnosed and delivery planned?",
+                "Is the patient currently on Aspirin 150mg? If so, when was it started?",
+                "What is the current BP? Any symptoms (headache, visual disturbance, epigastric pain, oedema)?",
+                "What were the uterine artery Doppler results at 20 weeks?",
+                "Any co-existing conditions increasing PE risk (renal disease, diabetes, autoimmune, APS)?",
+            ],
+            "decisions": [
+                {"question": "Severity of previous pre-eclampsia?", "options": [
+                    "Late-onset (>34w), uncomplicated → aspirin, growth scans 28/32/36w, deliver 37-38w",
+                    "Early-onset (<34w) or HELLP/eclampsia → maternal medicine referral, intensive surveillance from 24w",
+                ]},
+                {"question": "Uterine artery Doppler at 20 weeks?", "options": [
+                    "Normal → routine growth scans from 28w",
+                    "Bilateral notching or raised PI → increase surveillance, growth scans from 24w",
+                ]},
+                {"question": "BP ≥140/90 at any visit?", "options": [
+                    "Yes → admit/day unit assessment, pre-eclampsia bloods, senior review per THH-Hypertension",
+                    "No → continue 2-4 weekly monitoring",
+                ]},
+                {"question": "Proteinuria ≥1+ on dipstick?", "options": [
+                    "Yes → send urine PCR; if PCR ≥30mg/mmol → investigate for pre-eclampsia",
+                    "No → continue surveillance",
+                ]},
+            ],
+            "plan": [
+                (20, "Uterine artery Doppler at anomaly scan (THH-Hypertension)"),
+                (28, "Growth scan + 28w bloods (FBC, U&E, LFTs)"),
+                (32, "Growth scan + Obs ANC review"),
+                (34, "34w bloods (FBC, U&E, LFTs)"),
+                (36, "Growth scan + delivery planning (aim 37-38w if uncomplicated)"),
+                (37, "Consider delivery; no later than 38w unless clinical reason"),
+            ]
         })
 
     # Obstetric Cholestasis

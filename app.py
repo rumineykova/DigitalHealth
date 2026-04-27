@@ -71,6 +71,7 @@ DEMO_USE_CASES = {
     "Use Case 3: Previous Preterm": "29 year old, previous preterm labour at 30 weeks",
     "Use Case 4: High BMI + DVT": "42 year old, BMI of 45, Para 2 and previous history of DVT",
     "Use Case 5: Recurrent SGA (Para 2, Worsening Pattern)": "35 year old, Para 2, reviewing at 16 weeks. Previous baby 1: boy born at 37+2, weighing 2.8kg. Previous baby 2: boy born at 37+3, weighing 2.2kg.",
+    "Use Case 6: Thrombocytopenia": "32 year old, reviewing at 30 weeks. Platelet count 60.",
 }
 
 # Patient leaflets database
@@ -179,6 +180,7 @@ GUIDELINE_URLS = {
     "THH-LGA": SHAREPOINT_BASE + "202405211458230.Management%20of%20large%20for%20gestational%20age%20foetuses%20and%20macrosomia%20V2.0.pdf&parent=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines",
     "THH-Ultrasound": SHAREPOINT_BASE + "202507081315310.Obstetric_ultrasound%20protocol%20V4.0.pdf&parent=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines",
     "THH-MEWS": SHAREPOINT_BASE + "202506241703290.MEWS%20Early%20recognition%20of%20the%20severely%20ill%20pregnant%20woman%20V3.0.pdf&parent=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines",
+    "THH-Thrombocytopenia": SHAREPOINT_BASE + "202506271704420.thrombocytopenia%20in%20pregnancy%20v3.0.pdf&parent=%2Fpersonal%2Fcsstrrn%5Fbrunel%5Fac%5Fuk%2FDocuments%2FHealthHackathon%2DTeam5%2FMaternity%20clinical%20guidelines",
 }
 
 def make_link(ref):
@@ -287,6 +289,17 @@ def parse_scenario(text):
     weeks_match = re.search(r'(\d+)\s*weeks?', text_lower)
     if weeks_match:
         data["weeks"] = int(weeks_match.group(1))
+
+    # Platelet count
+    platelet_match = re.search(r'platelet(?:s|\s+count)?\s*(?:of\s*)?(\d+)', text_lower)
+    if platelet_match:
+        platelets = int(platelet_match.group(1))
+        data["labs"]["platelets"] = platelets
+        if platelets < 150:
+            if "Thrombocytopenia" not in data["risks"]:
+                data["risks"].append("Thrombocytopenia")
+            if "thrombocytopenia" not in data["leaflet_tags"]:
+                data["leaflet_tags"].append("thrombocytopenia")
 
     # BMI
     bmi_match = re.search(r'bmi\s*(?:of\s*)?(\d+(?:\.\d+)?)', text_lower)
@@ -514,23 +527,106 @@ def get_applicable_guidelines(patient_data, risks_text):
             "plan": [(16, "FMU referral if MCDA"), (24, "Start regular growth scans"), (28, "Anaesthetic/feeding referral"), (34, "Mode of birth discussion")]
         })
 
-    # Thrombocytopenia - THH Introduction guidelines
+    # Thrombocytopenia - THH Thrombocytopenia in Pregnancy v3.0
     if "thrombocytopenia" in combined or "low platelets" in combined:
+        platelets = labs.get("platelets")
+
+        # Build severity-specific summary
+        if platelets is not None:
+            if platelets < 20:
+                sev_note = f"Platelets {platelets} — SEVERE: treatment required to reduce risk of spontaneous haemorrhage. Regional anaesthesia contraindicated."
+            elif platelets < 30:
+                sev_note = f"Platelets {platelets} — SEVERE: treatment required to raise count >80 before delivery. Regional anaesthesia contraindicated."
+            elif platelets < 50:
+                sev_note = f"Platelets {platelets} — MODERATE: regional anaesthesia and major operative procedures contraindicated. Aspirin/NSAIDs contraindicated."
+            elif platelets < 80:
+                sev_note = f"Platelets {platelets} — MODERATE: regional anaesthesia must be discussed with anaesthetist. Full investigation required. Gestational thrombocytopenia unlikely (<80 warrants rethink of diagnosis)."
+            elif platelets < 100:
+                sev_note = f"Platelets {platelets} — MILD: anaesthetic referral required. Monitor fortnightly from 34w."
+            else:
+                sev_note = f"Platelets {platelets} — below normal range. Monitor."
+        else:
+            sev_note = "Platelet count below normal. Confirm on repeat FBC + blood film and classify severity."
+
+        # Severity-dependent actions
+        actions = [
+            {"text": "Repeat FBC with blood film to confirm true thrombocytopenia (exclude spurious result)", "ref": "THH-Thrombocytopenia", "default": True},
+            {"text": "Refer to joint obstetric haematology clinic", "ref": "THH-Thrombocytopenia", "default": platelets is not None and platelets < 80},
+            {"text": "Anaesthetic referral - discuss regional and general anaesthesia options", "ref": "THH-Thrombocytopenia", "default": platelets is not None and platelets < 100},
+            {"text": "Check: avoid aspirin and NSAIDs if platelets <50", "ref": "THH-Thrombocytopenia", "default": platelets is not None and platelets < 50},
+            {"text": "Document management plan clearly in hospital and handheld notes (labour page)", "ref": "THH-Thrombocytopenia", "default": False},
+            {"text": "Counsel re: presenting immediately if bleeding or bruising develops", "ref": "THH-Thrombocytopenia", "default": False},
+        ]
+        if platelets is not None and platelets < 50:
+            actions.append({"text": "URGENT: If platelets <50 with bleeding/bruising, discuss immediately with on-call haematology registrar (bleep 5083)", "ref": "THH-Thrombocytopenia", "default": True})
+        if platelets is not None and platelets < 30:
+            actions.append({"text": "Treatment required (IVIg and/or corticosteroids) to raise platelets >80 before delivery - discuss with obstetric haematology", "ref": "THH-Thrombocytopenia", "default": True})
+
         guidelines.append({
-            "name": "Thrombocytopenia",
-            "code": "THH-ANC",
-            "summary": "ITP: refer to obstetric medicine. Gestational: refer if platelets <80. No scans indicated.",
-            "actions": [{"text": "Refer to obstetric medicine at booking (if ITP)", "ref": "THH-ANC", "default": False}],
+            "name": "Thrombocytopenia in Pregnancy",
+            "code": "THH-Thrombocytopenia",
+            "summary": sev_note + " Most common cause: gestational thrombocytopenia (75%). ITP accounts for 3%. Full investigation if <80.",
+            "actions": actions,
             "tests": [
-                {"text": "FBC, blood film, reticulocyte count", "timing": "Now", "ref": "THH-ANC"},
-                {"text": "LFT, TFT, DAT, APS ab, ANA", "timing": "If platelets <80", "ref": "THH-ANC"},
-                {"text": "HIV, HepB, HepC, H. pylori", "timing": "If platelets <80", "ref": "THH-ANC"},
-                {"text": "FBC every 2 weeks from 34w if <100", "timing": "From 34 weeks", "ref": "THH-ANC"}
+                {"text": "FBC + blood film (confirm true thrombocytopenia, exclude spurious)", "timing": "Now", "ref": "THH-Thrombocytopenia"},
+                {"text": "Reticulocyte count", "timing": "Now", "ref": "THH-Thrombocytopenia"},
+                {"text": "LFTs, TFTs, DAT (direct antiglobulin test)", "timing": "If platelets <80", "ref": "THH-Thrombocytopenia"},
+                {"text": "Antiphospholipid antibodies (APS ab) + ANA", "timing": "If platelets <80", "ref": "THH-Thrombocytopenia"},
+                {"text": "HIV, Hepatitis B and C", "timing": "If platelets <80", "ref": "THH-Thrombocytopenia"},
+                {"text": "H. pylori screen", "timing": "If platelets <80", "ref": "THH-Thrombocytopenia"},
+                {"text": "Consider VWF testing (vWF:RCo, Ag and RIPA) to exclude VWF Type IIb", "timing": "If platelets <80", "ref": "THH-Thrombocytopenia"},
+                {"text": "FBC fortnightly from 34 weeks if platelets <100", "timing": "From 34 weeks", "ref": "THH-Thrombocytopenia"},
+                {"text": "FBC weekly after 34w if platelets falling below 80", "timing": "From 34 weeks if deteriorating", "ref": "THH-Thrombocytopenia"},
+                {"text": "FBC on admission in labour or for planned delivery", "timing": "Intrapartum", "ref": "THH-Thrombocytopenia"},
             ],
+            "ultrasound": [],
             "followup": [
-                {"text": "Obstetric medicine review", "timing": "If platelets <80", "ref": "THH-ANC"}
+                {"text": "Joint obstetric haematology clinic (monthly)", "timing": "If platelets <80", "ref": "THH-Thrombocytopenia"},
+                {"text": "Anaesthetic referral (regional and general anaesthesia planning)", "timing": "If platelets <100", "ref": "THH-Thrombocytopenia"},
+                {"text": "Postnatal haematology outpatient referral at 8-12 weeks if thrombocytopenia persists", "timing": "Postnatal", "ref": "THH-Thrombocytopenia"},
             ],
-            "plan": [(34, "FBC every 2 weeks if platelets <100")]
+            "clarify": [
+                "What is the current platelet count and trend (rising, stable, or falling)?",
+                "Any history of thrombocytopenia outside of pregnancy, or in previous pregnancies?",
+                "Any bleeding, bruising, or petechiae?",
+                "Any family history of thrombocytopenia or bleeding disorders?",
+                "Current medications - particularly heparin, sodium valproate, aspirin, NSAIDs?",
+                "Any symptoms of pre-eclampsia (headache, visual disturbance, epigastric pain, oedema)?",
+                "Any symptoms suggesting infection (fever, malaise)?",
+                "Has a repeat FBC + blood film been done to exclude spurious result?",
+            ],
+            "decisions": [
+                {"question": "Platelet count threshold?", "options": [
+                    ">100 → gestational thrombocytopenia likely, monitor fortnightly from 34w",
+                    "80-100 → anaesthetic referral; fortnightly FBC from 34w; rethink if falling",
+                    "<80 → full investigation, obstetric haematology clinic, anaesthetic referral, rethink diagnosis",
+                    "<50 → regional anaesthesia + major procedures contraindicated; aspirin/NSAIDs contraindicated",
+                    "<30 → treatment required before delivery (IVIg/steroids to raise >80)",
+                    "<20 → treat to reduce risk of spontaneous haemorrhage",
+                ]},
+                {"question": "Features of ITP vs gestational thrombocytopenia?", "options": [
+                    "Gestational: onset mid-2nd/3rd trimester, usually >70, no bleeding hx, normal film, no other cause",
+                    "ITP: count <100 early in pregnancy, can be <5-10, responds to IVIg/steroids, fetal risk ~10% <50",
+                    "If <50 → gestational thrombocytopenia very unlikely - investigate for ITP/other cause",
+                ]},
+                {"question": "Intrapartum precautions if platelets <100 or previous ITP?", "options": [
+                    "Avoid: fetal blood sampling, fetal scalp electrodes, high forceps, ventouse delivery",
+                    "Mode of delivery determined by obstetric indications, not platelet count alone",
+                ]},
+                {"question": "Neonatal risk if ITP suspected?", "options": [
+                    "~10% of babies have platelets <50, 5% have <20 → peripheral blood sample at delivery",
+                    "Recheck daily if thrombocytopenic (nadir at 2-5 days)",
+                    "Cranial USS if neonatal platelets <50 (ICH risk)",
+                ]},
+            ],
+            "plan": [
+                (weeks, "Repeat FBC + blood film; refer obstetric haematology if <80"),
+                (weeks, "Anaesthetic referral if platelets <100"),
+                (34, "FBC fortnightly if platelets <100; weekly if <80 and falling"),
+                (34, "Review intrapartum precautions; document in notes"),
+                (36, "Delivery planning: confirm platelet count, anaesthetic plan, intrapartum instructions"),
+                (40, "FBC on admission in labour; postnatal haematology referral if persists"),
+            ]
         })
 
     # VTE / Previous DVT - THH VTE Prophylaxis flowchart
